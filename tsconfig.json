@@ -1,1 +1,39 @@
-{"compilerOptions":{"target":"ES2022","lib":["dom","esnext"],"jsx":"preserve","module":"esnext","moduleResolution":"bundler","strict":true,"paths":{"@/*":["./src/*"]}}}
+{
+  "compilerOptions": {
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/types": ["./types/index"],
+      "@/types/*": ["./types/*"],
+      "@/config/*": ["./config/*"],
+      "@/lib/*": ["./lib/*"]
+    },
+    "baseUrl": "."
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "types/**/*.ts",
+    "config/**/*.ts",
+    "lib/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

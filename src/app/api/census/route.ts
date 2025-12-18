@@ -1,185 +1,248 @@
 // ============================================================================
-// CR AUDIOVIZ AI - CENSUS API
+// CR AUDIOVIZ AI - CENSUS DEMOGRAPHICS API
 // GET /api/census - Get demographics by ZIP code (Pro feature)
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getCensusData } from '@/lib/free-apis';
+import { getCensusDataByZip } from '@/lib/free-apis';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export async function GET(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
-    const zipCode = searchParams.get('zip');
-    const userTier = searchParams.get('tier') || 'free';
+  const { searchParams } = new URL(request.url);
+  const zipCode = searchParams.get('zip');
 
-    // Validate ZIP code
-    if (!zipCode) {
-      return NextResponse.json(
-        { error: 'ZIP code is required. Use ?zip=12345' },
-        { status: 400 }
-      );
+  if (!zipCode) {
+    return NextResponse.json(
+      { success: false, error: 'ZIP code is required' },
+      { status: 400 }
+    );
+  }
+
+  // Validate ZIP code format
+  if (!/^\d{5}$/.test(zipCode)) {
+    return NextResponse.json(
+      { success: false, error: 'Invalid ZIP code format. Must be 5 digits.' },
+      { status: 400 }
+    );
+  }
+
+  // Check user authentication and tier
+  const authHeader = request.headers.get('authorization');
+  let userId: string | null = null;
+  let userTier = 'starter';
+
+  if (authHeader) {
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (user) {
+      userId = user.id;
+
+      // Get user subscription tier
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('subscription_tier')
+        .eq('id', userId)
+        .single();
+
+      userTier = profile?.subscription_tier || 'starter';
     }
+  }
 
-    if (!/^\d{5}$/.test(zipCode)) {
-      return NextResponse.json(
-        { error: 'Invalid ZIP code format. Must be 5 digits.' },
-        { status: 400 }
-      );
-    }
-
-    // Check tier for access (Census is a Pro feature)
-    if (userTier === 'free') {
-      return NextResponse.json({
+  // Census data is a Pro feature
+  if (userTier === 'starter') {
+    return NextResponse.json(
+      {
         success: false,
-        error: 'Census data is a Pro feature',
-        upgradeRequired: true,
+        error: 'Census demographics is a Pro feature',
+        upgradeUrl: '/pricing',
         preview: {
           zipCode,
-          message: 'Upgrade to Pro to access detailed demographics including population, income, education, and industry data for any US ZIP code.',
+          message: 'Upgrade to Pro to see demographics for this ZIP code',
           features: [
-            'Population and household data',
-            'Median income statistics',
+            'Population & median age',
+            'Median household income',
             'Education levels',
-            'Top industries in the area',
-            'Homeownership rates',
-            'Employment statistics',
+            'Home ownership rates',
+            'AI-powered marketing insights',
           ],
+        },
+      },
+      { status: 403 }
+    );
+  }
+
+  // Check monthly usage for Pro users (100 lookups/month)
+  if (userTier === 'pro' && userId) {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { count } = await supabase
+      .from('census_lookups')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('created_at', thirtyDaysAgo.toISOString());
+
+    if ((count || 0) >= 100) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Monthly Census lookup limit reached (100/month). Upgrade to Enterprise for unlimited.',
+          upgradeUrl: '/pricing',
+        },
+        { status: 429 }
+      );
+    }
+  }
+
+  try {
+    // Check cache first
+    const { data: cached } = await supabase
+      .from('census_cache')
+      .select('data, cached_at')
+      .eq('zip_code', zipCode)
+      .single();
+
+    // Use cache if less than 30 days old
+    const cacheExpiry = 30 * 24 * 60 * 60 * 1000; // 30 days
+    if (cached && Date.now() - new Date(cached.cached_at).getTime() < cacheExpiry) {
+      // Log usage
+      if (userId) {
+        await supabase.from('census_lookups').insert({
+          user_id: userId,
+          zip_code: zipCode,
+          from_cache: true,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        data: cached.data,
+        cached: true,
+        meta: {
+          zipCode,
+          cachedAt: cached.cached_at,
         },
       });
     }
 
-    // Fetch census data
-    const data = await getCensusData(zipCode);
+    // Fetch fresh data from Census API
+    const censusData = await getCensusDataByZip(zipCode);
 
-    if (!data) {
+    if (!censusData) {
       return NextResponse.json(
-        { 
-          error: 'Unable to fetch census data for this ZIP code',
-          zipCode,
-          suggestion: 'The ZIP code may not have detailed census data available. Try a nearby ZIP code.',
+        {
+          success: false,
+          error: 'No data found for this ZIP code',
+          suggestion: 'This ZIP code may not exist or have insufficient data',
         },
         { status: 404 }
       );
     }
 
-    // Return formatted census data
+    // Cache the result
+    await supabase.from('census_cache').upsert({
+      zip_code: zipCode,
+      data: censusData,
+      cached_at: new Date().toISOString(),
+    });
+
+    // Log usage
+    if (userId) {
+      await supabase.from('census_lookups').insert({
+        user_id: userId,
+        zip_code: zipCode,
+        from_cache: false,
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      data: {
-        ...data,
-        marketingInsights: generateMarketingInsights(data),
+      data: censusData,
+      cached: false,
+      meta: {
+        zipCode,
+        source: 'US Census Bureau - American Community Survey',
+        dataYear: '2022',
       },
-      source: 'US Census Bureau ACS 5-Year Estimates',
-      lastUpdated: '2022',
     });
   } catch (error) {
-    console.error('[Census API] Error:', error);
+    console.error('Census API error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch census data' },
+      { success: false, error: 'Failed to fetch Census data' },
       { status: 500 }
     );
   }
 }
 
-// Generate marketing insights from census data
-function generateMarketingInsights(data: {
-  population: number;
-  medianIncome: number;
-  medianAge: number;
-  educationBachelorOrHigher: number;
-  homeownershipRate: number;
-  topIndustries: string[];
-}) {
-  const insights: string[] = [];
-
-  // Population insights
-  if (data.population > 50000) {
-    insights.push('High population density - good for broad reach campaigns');
-  } else if (data.population > 20000) {
-    insights.push('Medium-sized market - local targeting recommended');
-  } else {
-    insights.push('Smaller community - hyper-local marketing effective');
-  }
-
-  // Income insights
-  if (data.medianIncome > 100000) {
-    insights.push('Affluent area - premium positioning viable');
-  } else if (data.medianIncome > 60000) {
-    insights.push('Middle-income market - value proposition important');
-  } else {
-    insights.push('Budget-conscious market - emphasize affordability');
-  }
-
-  // Age insights
-  if (data.medianAge < 35) {
-    insights.push('Younger demographic - digital-first marketing');
-  } else if (data.medianAge > 50) {
-    insights.push('Mature demographic - traditional + digital mix');
-  } else {
-    insights.push('Mixed age demographic - multi-channel approach');
-  }
-
-  // Education insights
-  if (data.educationBachelorOrHigher > 40) {
-    insights.push('Highly educated - detailed, informative content works');
-  }
-
-  // Homeownership
-  if (data.homeownershipRate > 70) {
-    insights.push('High homeownership - home services market opportunity');
-  }
-
-  return insights;
-}
-
-// POST /api/census - Batch lookup (Enterprise feature)
+// Batch lookup endpoint
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { zipCodes, tier } = body;
-
-    if (tier !== 'enterprise') {
-      return NextResponse.json(
-        { 
-          error: 'Batch census lookup is an Enterprise feature',
-          upgradeRequired: true,
-        },
-        { status: 403 }
-      );
-    }
+    const { zipCodes } = body;
 
     if (!zipCodes || !Array.isArray(zipCodes)) {
       return NextResponse.json(
-        { error: 'zipCodes array is required' },
+        { success: false, error: 'zipCodes array is required' },
         { status: 400 }
       );
     }
 
-    if (zipCodes.length > 25) {
+    if (zipCodes.length > 10) {
       return NextResponse.json(
-        { error: 'Maximum 25 ZIP codes per request' },
+        { success: false, error: 'Maximum 10 ZIP codes per request' },
         { status: 400 }
+      );
+    }
+
+    // Check authentication (Pro feature)
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required for batch lookup' },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user } } = await supabase.auth.getUser(token);
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid authentication' },
+        { status: 401 }
       );
     }
 
     // Fetch all ZIP codes in parallel
     const results = await Promise.all(
       zipCodes.map(async (zip: string) => {
-        const data = await getCensusData(zip);
-        return { zipCode: zip, data };
+        try {
+          const data = await getCensusDataByZip(zip);
+          return { zipCode: zip, success: true, data };
+        } catch {
+          return { zipCode: zip, success: false, error: 'Failed to fetch' };
+        }
       })
     );
 
     return NextResponse.json({
       success: true,
       results,
-      count: results.length,
-      successfulLookups: results.filter(r => r.data !== null).length,
+      meta: {
+        requested: zipCodes.length,
+        successful: results.filter((r) => r.success).length,
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
-    console.error('[Census API] Batch error:', error);
+    console.error('Batch census error:', error);
     return NextResponse.json(
-      { error: 'Failed to process batch request' },
+      { success: false, error: 'Failed to process batch request' },
       { status: 500 }
     );
   }

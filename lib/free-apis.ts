@@ -571,7 +571,7 @@ export async function getMarketResearch(industry: string): Promise<MarketResearc
     });
   }
 
-  if (redditPosts?.topPosts?.length > 0) {
+  if (redditPosts?.topPosts && redditPosts.topPosts.length > 0) {
     trends.push({
       source: 'Reddit',
       items: redditPosts.topPosts.map(p => p.title),

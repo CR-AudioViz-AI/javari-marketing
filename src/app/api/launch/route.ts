@@ -1,225 +1,407 @@
 // ============================================================================
 // CR AUDIOVIZ AI - LAUNCH CHECKLIST API
-// GET /api/launch - Get launch checklist and sites
+// GET /api/launch - Get personalized launch checklist with FREE sites
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { LAUNCH_SITES, getLaunchSitesByPriority, getFreeLaunchSites, type LaunchSite } from '@/lib/free-apis';
+import { LAUNCH_SITES, getLaunchSitesForCategory } from '@/lib/free-apis';
+
+interface LaunchTask {
+  id: string;
+  category: string;
+  task: string;
+  description: string;
+  daysBeforeLaunch: number;
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  resources?: { name: string; url: string }[];
+  tips?: string[];
+}
+
+// Pre-launch checklist tasks
+const LAUNCH_TASKS: LaunchTask[] = [
+  // 4 Weeks Before
+  {
+    id: 'audience-research',
+    category: 'Research',
+    task: 'Complete audience research',
+    description: 'Define your target audience, create buyer personas, and identify where they hang out online',
+    daysBeforeLaunch: 28,
+    priority: 'critical',
+    tips: [
+      'Use Reddit and Twitter to find conversations about your problem',
+      'Interview 5-10 potential users if possible',
+      'Document pain points and language they use',
+    ],
+  },
+  {
+    id: 'messaging',
+    category: 'Content',
+    task: 'Finalize value proposition and messaging',
+    description: 'Create your core messaging, tagline, and key benefits',
+    daysBeforeLaunch: 28,
+    priority: 'critical',
+    tips: [
+      'Test messaging with potential users',
+      'Keep it simple and benefit-focused',
+      'Avoid jargon - use customer language',
+    ],
+  },
+  {
+    id: 'landing-page',
+    category: 'Website',
+    task: 'Build launch landing page',
+    description: 'Create a conversion-optimized landing page with clear CTA',
+    daysBeforeLaunch: 21,
+    priority: 'critical',
+    resources: [
+      { name: 'Carrd (Free)', url: 'https://carrd.co' },
+      { name: 'Framer (Free tier)', url: 'https://framer.com' },
+      { name: 'CRAV Landing Builder', url: 'https://craudiovizai.com/tools/landing' },
+    ],
+  },
+  {
+    id: 'visuals',
+    category: 'Content',
+    task: 'Create launch visuals',
+    description: 'Product screenshots, demo video, social graphics, and Product Hunt assets',
+    daysBeforeLaunch: 14,
+    priority: 'high',
+    resources: [
+      { name: 'Canva (Free)', url: 'https://canva.com' },
+      { name: 'Loom (Free)', url: 'https://loom.com' },
+      { name: 'CRAV Social Graphics', url: 'https://craudiovizai.com/tools/social-graphics' },
+    ],
+    tips: [
+      'Product Hunt recommends a GIF or video',
+      'Create multiple sizes for different platforms',
+      'Show the product in action, not just logos',
+    ],
+  },
+
+  // 2 Weeks Before
+  {
+    id: 'email-list',
+    category: 'Email',
+    task: 'Build pre-launch email list',
+    description: 'Set up email capture and start building anticipation',
+    daysBeforeLaunch: 14,
+    priority: 'high',
+    resources: [
+      { name: 'Mailchimp (Free)', url: 'https://mailchimp.com' },
+      { name: 'Buttondown (Free)', url: 'https://buttondown.email' },
+      { name: 'ConvertKit', url: 'https://convertkit.com' },
+    ],
+  },
+  {
+    id: 'ph-prep',
+    category: 'Product Hunt',
+    task: 'Prepare Product Hunt launch',
+    description: 'Set up maker profile, prepare assets, find a hunter',
+    daysBeforeLaunch: 14,
+    priority: 'high',
+    resources: [{ name: 'Product Hunt', url: 'https://producthunt.com' }],
+    tips: [
+      'Build relationships with hunters before asking',
+      'Prepare 5 high-quality images/GIFs',
+      'Write a compelling first comment',
+      'Schedule for Tuesday-Thursday, 12:01 AM PST',
+    ],
+  },
+  {
+    id: 'social-profiles',
+    category: 'Social',
+    task: 'Set up and optimize social profiles',
+    description: 'Create/update Twitter, LinkedIn, and relevant platform profiles',
+    daysBeforeLaunch: 14,
+    priority: 'medium',
+  },
+  {
+    id: 'beta-testers',
+    category: 'Product',
+    task: 'Recruit beta testers',
+    description: 'Get 10-50 early users to test and provide feedback',
+    daysBeforeLaunch: 14,
+    priority: 'high',
+    resources: [
+      { name: 'BetaList', url: 'https://betalist.com' },
+      { name: 'Reddit r/startups', url: 'https://reddit.com/r/startups' },
+    ],
+  },
+
+  // 1 Week Before
+  {
+    id: 'press-kit',
+    category: 'PR',
+    task: 'Create press kit',
+    description: 'Prepare press release, founder bio, logos, and screenshots',
+    daysBeforeLaunch: 7,
+    priority: 'medium',
+    tips: [
+      'Include high-res logo files',
+      'Write a 1-paragraph and 3-paragraph description',
+      'Have quotes ready from beta testers',
+    ],
+  },
+  {
+    id: 'content-queue',
+    category: 'Content',
+    task: 'Prepare launch content',
+    description: 'Write tweets, LinkedIn posts, and email sequences',
+    daysBeforeLaunch: 7,
+    priority: 'high',
+    tips: [
+      'Prepare 10+ tweets for launch day',
+      'Write 3 different angles for the story',
+      'Have email templates ready for outreach',
+    ],
+  },
+  {
+    id: 'supporters',
+    category: 'Community',
+    task: 'Rally your supporters',
+    description: 'Notify friends, family, and network about launch date',
+    daysBeforeLaunch: 7,
+    priority: 'high',
+    tips: [
+      'Create a private Slack/Discord for supporters',
+      'Give specific actions they can take',
+      'Make it easy for them to share',
+    ],
+  },
+
+  // 3 Days Before
+  {
+    id: 'final-check',
+    category: 'Product',
+    task: 'Final product check',
+    description: 'Test all features, fix critical bugs, check analytics',
+    daysBeforeLaunch: 3,
+    priority: 'critical',
+  },
+  {
+    id: 'schedule-posts',
+    category: 'Social',
+    task: 'Schedule social media posts',
+    description: 'Queue up launch day posts across all platforms',
+    daysBeforeLaunch: 3,
+    priority: 'high',
+    resources: [
+      { name: 'Buffer (Free)', url: 'https://buffer.com' },
+      { name: 'Later (Free)', url: 'https://later.com' },
+    ],
+  },
+
+  // Launch Day
+  {
+    id: 'ph-launch',
+    category: 'Product Hunt',
+    task: 'Launch on Product Hunt',
+    description: 'Go live and engage with the community all day',
+    daysBeforeLaunch: 0,
+    priority: 'critical',
+    tips: [
+      'Be online the entire day',
+      'Respond to every comment',
+      'Share updates on social media',
+      'Thank your supporters',
+    ],
+  },
+  {
+    id: 'hn-launch',
+    category: 'Hacker News',
+    task: 'Post on Hacker News (Show HN)',
+    description: 'Share your launch with the HN community',
+    daysBeforeLaunch: 0,
+    priority: 'high',
+    resources: [{ name: 'Hacker News', url: 'https://news.ycombinator.com' }],
+    tips: [
+      'Post between 9 AM - 12 PM EST',
+      'Be authentic and technical',
+      'Respond to every comment thoughtfully',
+    ],
+  },
+  {
+    id: 'reddit-launch',
+    category: 'Reddit',
+    task: 'Share on relevant subreddits',
+    description: 'Post in r/startups, r/SideProject, and niche subreddits',
+    daysBeforeLaunch: 0,
+    priority: 'high',
+  },
+  {
+    id: 'email-blast',
+    category: 'Email',
+    task: 'Send launch email',
+    description: 'Email your waitlist and ask for support',
+    daysBeforeLaunch: 0,
+    priority: 'critical',
+  },
+
+  // Post-Launch
+  {
+    id: 'follow-up',
+    category: 'Community',
+    task: 'Follow up with supporters',
+    description: 'Thank everyone, share results, and collect testimonials',
+    daysBeforeLaunch: -1,
+    priority: 'high',
+  },
+  {
+    id: 'submit-directories',
+    category: 'SEO',
+    task: 'Submit to startup directories',
+    description: 'List your product on free directories for SEO',
+    daysBeforeLaunch: -1,
+    priority: 'medium',
+    resources: [
+      { name: 'AlternativeTo', url: 'https://alternativeto.net' },
+      { name: 'SaaSHub', url: 'https://saashub.com' },
+      { name: 'Startup Stash', url: 'https://startupstash.com' },
+    ],
+  },
+];
 
 export async function GET(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
-    const priority = searchParams.get('priority') as LaunchSite['priority'] | null;
-    const freeOnly = searchParams.get('free') === 'true';
-    const category = searchParams.get('category');
+  const { searchParams } = new URL(request.url);
+  const category = searchParams.get('category');
+  const daysToLaunch = parseInt(searchParams.get('daysToLaunch') || '28');
 
-    let sites = [...LAUNCH_SITES];
-
-    // Filter by priority
-    if (priority) {
-      sites = getLaunchSitesByPriority(priority);
-    }
-
-    // Filter free only
-    if (freeOnly) {
-      sites = getFreeLaunchSites();
-    }
-
-    // Filter by category
-    if (category) {
-      sites = sites.filter(s => s.category === category);
-    }
-
-    // Group by priority for organized response
-    const grouped = {
-      must: sites.filter(s => s.priority === 'must'),
-      should: sites.filter(s => s.priority === 'should'),
-      nice: sites.filter(s => s.priority === 'nice'),
-    };
-
-    return NextResponse.json({
-      success: true,
-      sites,
-      grouped,
-      stats: {
-        total: sites.length,
-        must: grouped.must.length,
-        should: grouped.should.length,
-        nice: grouped.nice.length,
-        free: sites.filter(s => s.costToFeature === 'Free' || s.costToFeature?.includes('Free')).length,
-      },
-      launchTips: [
-        'Start preparing 2-3 weeks before launch day',
-        'Build anticipation with a waitlist or early access',
-        'Coordinate launch posts across all platforms',
-        'Have team ready to respond to comments/questions all day',
-        'Document everything for future launches',
-      ],
-    });
-  } catch (error) {
-    console.error('[Launch API] Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch launch data' },
-      { status: 500 }
-    );
+  // Filter launch sites by category
+  let launchSites = [...LAUNCH_SITES];
+  if (category) {
+    launchSites = getLaunchSitesForCategory(category);
   }
-}
 
-// POST /api/launch - Generate personalized launch checklist
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { 
-      productName, 
-      productType, // 'saas', 'app', 'physical', 'content'
-      targetAudience, // 'tech', 'business', 'consumer', 'creative'
-      launchDate,
-      budget,
-    } = body;
+  // Filter tasks by timeline
+  const relevantTasks = LAUNCH_TASKS.filter(
+    (task) => task.daysBeforeLaunch <= daysToLaunch
+  ).sort((a, b) => b.daysBeforeLaunch - a.daysBeforeLaunch);
 
-    if (!productName) {
-      return NextResponse.json(
-        { error: 'productName is required' },
-        { status: 400 }
-      );
-    }
-
-    // Generate personalized checklist
-    const checklist = generatePersonalizedChecklist(productType, targetAudience, budget);
-    
-    // Get relevant launch sites
-    let recommendedSites = [...LAUNCH_SITES];
-    
-    // Filter based on product type and audience
-    if (targetAudience === 'tech') {
-      // Prioritize tech communities
-      recommendedSites = recommendedSites.filter(s => 
-        ['Hacker News', 'Product Hunt', 'Indie Hackers', 'Reddit'].some(name => s.name.includes(name))
-      );
-    } else if (targetAudience === 'business') {
-      // Prioritize B2B platforms
-      recommendedSites = recommendedSites.filter(s => 
-        s.category === 'directory' || s.name.includes('LinkedIn')
-      );
-    }
-
-    // If zero budget, only show free sites
-    if (budget === 'zero') {
-      recommendedSites = recommendedSites.filter(s => 
-        s.costToFeature === 'Free' || s.costToFeature?.includes('Free')
-      );
-    }
-
-    // Calculate launch timeline
-    const timeline = generateLaunchTimeline(launchDate);
-
-    return NextResponse.json({
-      success: true,
-      productName,
-      checklist,
-      recommendedSites: recommendedSites.slice(0, 10),
-      timeline,
-      proTips: getProTips(productType),
-    });
-  } catch (error) {
-    console.error('[Launch API] Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate launch checklist' },
-      { status: 500 }
-    );
-  }
-}
-
-function generatePersonalizedChecklist(
-  productType: string,
-  targetAudience: string,
-  budget: string
-): { category: string; items: { task: string; completed: boolean; priority: string }[] }[] {
-  const checklist = [
-    {
-      category: 'Pre-Launch (2 Weeks Before)',
-      items: [
-        { task: 'Create landing page with email capture', completed: false, priority: 'high' },
-        { task: 'Prepare 5-10 product screenshots/GIFs', completed: false, priority: 'high' },
-        { task: 'Write launch announcement copy', completed: false, priority: 'high' },
-        { task: 'Set up analytics tracking', completed: false, priority: 'medium' },
-        { task: 'Create social media graphics', completed: false, priority: 'medium' },
-        { task: 'Build email list of supporters', completed: false, priority: 'high' },
-      ],
-    },
-    {
-      category: 'Launch Day',
-      items: [
-        { task: 'Post on Product Hunt at 12:01 AM PST', completed: false, priority: 'high' },
-        { task: 'Share on Twitter/X with launch thread', completed: false, priority: 'high' },
-        { task: 'Post on LinkedIn', completed: false, priority: 'medium' },
-        { task: 'Submit to Hacker News (Show HN)', completed: false, priority: 'high' },
-        { task: 'Post in relevant Reddit communities', completed: false, priority: 'medium' },
-        { task: 'Send email to supporters', completed: false, priority: 'high' },
-        { task: 'Monitor and respond to all comments', completed: false, priority: 'high' },
-      ],
-    },
-    {
-      category: 'Post-Launch (Week 1)',
-      items: [
-        { task: 'Submit to directories (BetaList, SaaSHub)', completed: false, priority: 'medium' },
-        { task: 'Reach out to relevant newsletters', completed: false, priority: 'medium' },
-        { task: 'Collect and respond to feedback', completed: false, priority: 'high' },
-        { task: 'Write launch retrospective blog post', completed: false, priority: 'low' },
-        { task: 'Follow up with interested users', completed: false, priority: 'high' },
-      ],
-    },
+  // Group tasks by phase
+  const phases = [
+    { name: '4 Weeks Before', minDays: 21, maxDays: 28 },
+    { name: '2 Weeks Before', minDays: 8, maxDays: 20 },
+    { name: '1 Week Before', minDays: 4, maxDays: 7 },
+    { name: '3 Days Before', minDays: 1, maxDays: 3 },
+    { name: 'Launch Day', minDays: 0, maxDays: 0 },
+    { name: 'Post-Launch', minDays: -7, maxDays: -1 },
   ];
 
-  // Add product-specific tasks
-  if (productType === 'saas') {
-    checklist[0].items.push({ 
-      task: 'Set up trial or freemium tier', 
-      completed: false, 
-      priority: 'high' 
-    });
-  }
+  const groupedTasks = phases.map((phase) => ({
+    ...phase,
+    tasks: relevantTasks.filter(
+      (task) =>
+        task.daysBeforeLaunch >= phase.minDays &&
+        task.daysBeforeLaunch <= phase.maxDays
+    ),
+  }));
 
-  return checklist;
-}
+  // Calculate completion stats
+  const totalTasks = relevantTasks.length;
+  const criticalTasks = relevantTasks.filter((t) => t.priority === 'critical').length;
+  const freeSitesCount = launchSites.length;
 
-function generateLaunchTimeline(launchDate?: string): { date: string; milestone: string }[] {
-  const launch = launchDate ? new Date(launchDate) : new Date();
-  
-  const timeline = [
-    { offset: -14, milestone: 'Start pre-launch preparations' },
-    { offset: -7, milestone: 'Finalize all launch materials' },
-    { offset: -3, milestone: 'Schedule social media posts' },
-    { offset: -1, milestone: 'Final review and testing' },
-    { offset: 0, milestone: '🚀 LAUNCH DAY' },
-    { offset: 1, milestone: 'Follow up on launch day engagement' },
-    { offset: 7, milestone: 'Week 1 retrospective' },
-    { offset: 14, milestone: 'Submit to remaining directories' },
-  ];
-
-  return timeline.map(t => {
-    const date = new Date(launch);
-    date.setDate(date.getDate() + t.offset);
-    return {
-      date: date.toISOString().split('T')[0],
-      milestone: t.milestone,
-    };
+  return NextResponse.json({
+    success: true,
+    checklist: {
+      phases: groupedTasks,
+      totalTasks,
+      criticalTasks,
+    },
+    launchSites,
+    tips: {
+      general: [
+        'Start building hype 2-4 weeks before launch',
+        'Product Hunt launches work best Tuesday-Thursday',
+        'Engage authentically on every platform',
+        'Quality > Quantity - focus on 3-5 platforms max',
+        'Have team/supporters ready to engage on launch day',
+      ],
+      productHunt: LAUNCH_SITES.find((s) => s.name === 'Product Hunt')?.submissionTips || [],
+      hackerNews: LAUNCH_SITES.find((s) => s.name === 'Hacker News (Show HN)')?.submissionTips || [],
+    },
+    meta: {
+      daysToLaunch,
+      category,
+      freeSitesCount,
+      timestamp: new Date().toISOString(),
+    },
   });
 }
 
-function getProTips(productType: string): string[] {
-  const tips = [
-    'Launch on Tuesday, Wednesday, or Thursday for best engagement',
-    'Have your team ready to answer questions within 5 minutes',
-    'Thank EVERY person who comments or shares',
-    'Don\'t ask directly for upvotes - it can get you disqualified',
-    'Prepare responses to common questions in advance',
-  ];
+// POST endpoint to generate personalized checklist
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { launchDate, productType, channels, budget } = body;
 
-  if (productType === 'saas') {
-    tips.push('Offer a special launch day discount or extended trial');
-    tips.push('Have a demo video ready (under 2 minutes)');
+    // Calculate days to launch
+    const launch = new Date(launchDate);
+    const today = new Date();
+    const daysToLaunch = Math.ceil(
+      (launch.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Filter tasks based on timeline
+    let tasks = LAUNCH_TASKS.filter(
+      (task) => task.daysBeforeLaunch <= daysToLaunch
+    );
+
+    // Filter launch sites based on product type
+    let sites = getLaunchSitesForCategory(productType || 'saas');
+
+    // If budget is 0, emphasize free resources
+    if (budget === 0) {
+      tasks = tasks.map((task) => ({
+        ...task,
+        resources: task.resources?.filter(
+          (r) => r.name.toLowerCase().includes('free') || r.name.includes('CRAV')
+        ),
+      }));
+    }
+
+    // Generate timeline
+    const timeline = [];
+    for (let day = daysToLaunch; day >= -1; day--) {
+      const dayTasks = tasks.filter((t) => t.daysBeforeLaunch === day);
+      if (dayTasks.length > 0) {
+        const targetDate = new Date(today);
+        targetDate.setDate(targetDate.getDate() + (daysToLaunch - day));
+        timeline.push({
+          daysFromNow: daysToLaunch - day,
+          date: targetDate.toISOString().split('T')[0],
+          label:
+            day === 0
+              ? 'Launch Day!'
+              : day < 0
+              ? `Day ${Math.abs(day)} After Launch`
+              : `${day} Days Before`,
+          tasks: dayTasks,
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      launchDate: launchDate,
+      daysToLaunch,
+      timeline,
+      recommendedSites: sites.slice(0, 10),
+      urgentTasks: tasks
+        .filter((t) => t.priority === 'critical' && t.daysBeforeLaunch <= 7)
+        .slice(0, 5),
+      meta: {
+        totalTasks: tasks.length,
+        productType,
+        budget,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Launch checklist error:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to generate checklist' },
+      { status: 500 }
+    );
   }
-
-  return tips;
 }

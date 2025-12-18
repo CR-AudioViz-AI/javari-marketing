@@ -1,345 +1,407 @@
 // ============================================================================
 // CR AUDIOVIZ AI - AI STRATEGY GENERATOR
-// Multi-AI routing: Groq (FREE) → Perplexity → OpenAI
+// Multi-AI routing: Groq (FREE) → Perplexity → OpenAI (fallback)
 // ============================================================================
 
-import { INDUSTRIES, CAMPAIGN_GOALS, BUDGET_RANGES } from '@/config/pricing';
-import { getCravPlatforms, getPlatformsByTier, type Platform } from '@/config/platforms';
+import { CRAV_TOOLS } from '@/config/platforms';
+import { CAMPAIGN_GOALS, INDUSTRIES } from '@/config/pricing';
 
 export interface StrategyRequest {
   businessName: string;
   industry: string;
   goal: string;
-  budget: string;
+  budget: number;
   targetArea: 'national' | 'state' | 'zip';
   targetLocation?: string;
-  channels: string[];
+  platforms: string[];
   description?: string;
+  competitors?: string[];
 }
 
 export interface MarketingStrategy {
   id: string;
-  overview: string;
+  summary: string;
+  executiveSummary: string;
+  targetAudience: {
+    demographics: string;
+    psychographics: string;
+    painPoints: string[];
+  };
   channels: ChannelStrategy[];
   timeline: TimelinePhase[];
-  budgetAllocation: BudgetItem[];
+  budget: BudgetAllocation;
+  metrics: KPI[];
   quickWins: string[];
-  cravRecommendations: Platform[];
+  cravRecommendations: CravRecommendation[];
   generatedAt: string;
+  aiProvider: string;
 }
 
 export interface ChannelStrategy {
   channel: string;
+  priority: 'high' | 'medium' | 'low';
   tactics: string[];
-  platforms: string[];
-  kpis: string[];
   estimatedCost: string;
+  expectedResults: string;
+  timeframe: string;
 }
 
 export interface TimelinePhase {
-  phase: string;
+  phase: number;
+  name: string;
   duration: string;
-  tasks: string[];
+  activities: string[];
+  milestones: string[];
 }
 
-export interface BudgetItem {
-  category: string;
-  percentage: number;
-  amount: string;
-  tools: string[];
+export interface BudgetAllocation {
+  total: number;
+  breakdown: { category: string; amount: number; percentage: number }[];
+  freeAlternatives: string[];
 }
 
-// AI Provider configuration
+export interface KPI {
+  metric: string;
+  target: string;
+  measurementMethod: string;
+}
+
+export interface CravRecommendation {
+  productName: string;
+  productUrl: string;
+  reason: string;
+  relevance: 'high' | 'medium';
+}
+
+// ============================================================================
+// AI PROVIDERS CONFIGURATION
+// ============================================================================
+
 const AI_PROVIDERS = {
   groq: {
     name: 'Groq',
-    baseUrl: 'https://api.groq.com/openai/v1',
-    model: 'llama-3.1-70b-versatile',
-    priority: 1, // Try first (FREE)
+    endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+    model: 'llama-3.3-70b-versatile',
+    priority: 1,
+    isFree: true,
   },
   perplexity: {
     name: 'Perplexity',
-    baseUrl: 'https://api.perplexity.ai',
-    model: 'llama-3.1-sonar-large-128k-online',
+    endpoint: 'https://api.perplexity.ai/chat/completions',
+    model: 'llama-3.1-sonar-small-128k-online',
     priority: 2,
+    isFree: false,
   },
   openai: {
     name: 'OpenAI',
-    baseUrl: 'https://api.openai.com/v1',
+    endpoint: 'https://api.openai.com/v1/chat/completions',
     model: 'gpt-4o-mini',
-    priority: 3, // Fallback
+    priority: 3,
+    isFree: false,
   },
 };
 
-// Generate strategy prompt
-function buildStrategyPrompt(request: StrategyRequest): string {
-  const budgetInfo = BUDGET_RANGES.find(b => b.id === request.budget);
-  const goalInfo = CAMPAIGN_GOALS.find(g => g.id === request.goal);
-  
-  return `You are an expert marketing strategist. Generate a comprehensive marketing strategy for this business.
+// ============================================================================
+// STRATEGY PROMPT BUILDER
+// ============================================================================
 
-BUSINESS DETAILS:
-- Name: ${request.businessName}
-- Industry: ${request.industry}
-- Goal: ${goalInfo?.label || request.goal}
-- Budget: ${budgetInfo?.label || request.budget}
+function buildStrategyPrompt(request: StrategyRequest): string {
+  const goal = CAMPAIGN_GOALS.find((g) => g.id === request.goal);
+  const industry = INDUSTRIES.find((i) => i.id === request.industry);
+
+  return `You are an expert marketing strategist. Generate a comprehensive, actionable marketing strategy.
+
+BUSINESS CONTEXT:
+- Business: ${request.businessName}
+- Industry: ${industry?.name || request.industry}
+- Goal: ${goal?.name || request.goal} - ${goal?.description || ''}
+- Monthly Budget: $${request.budget} (${request.budget === 0 ? 'FREE tools only' : request.budget < 500 ? 'micro-budget' : 'standard budget'})
 - Target Area: ${request.targetArea}${request.targetLocation ? ` (${request.targetLocation})` : ''}
-- Preferred Channels: ${request.channels.join(', ')}
+- Preferred Channels: ${request.platforms.join(', ')}
 ${request.description ? `- Additional Context: ${request.description}` : ''}
+${request.competitors?.length ? `- Competitors: ${request.competitors.join(', ')}` : ''}
 
 CRITICAL REQUIREMENTS:
-1. PRIORITIZE FREE TOOLS AND PLATFORMS - Always recommend free options before paid
-2. Be specific with platform names and tactics
-3. Include measurable KPIs for each channel
-4. Create a realistic 90-day timeline
-5. Budget allocation should match the ${budgetInfo?.label} range
+1. PRIORITIZE FREE TOOLS AND PLATFORMS - Always suggest free alternatives first
+2. Be SPECIFIC with tactics, not generic advice
+3. Include realistic timelines and metrics
+4. Consider the business size (small/startup based on budget)
+5. Focus on ROI and measurable results
 
-Respond in this exact JSON format:
+Generate a JSON response with this EXACT structure:
 {
-  "overview": "2-3 sentence executive summary",
+  "executiveSummary": "2-3 sentence overview of the strategy",
+  "targetAudience": {
+    "demographics": "Age, location, income, etc.",
+    "psychographics": "Interests, values, behaviors",
+    "painPoints": ["Pain point 1", "Pain point 2", "Pain point 3"]
+  },
   "channels": [
     {
-      "channel": "Channel Name",
+      "channel": "Channel name",
+      "priority": "high|medium|low",
       "tactics": ["Specific tactic 1", "Specific tactic 2"],
-      "platforms": ["Platform 1 (Free)", "Platform 2"],
-      "kpis": ["KPI 1", "KPI 2"],
-      "estimatedCost": "$X/month or FREE"
+      "estimatedCost": "$X/month or FREE",
+      "expectedResults": "Specific measurable outcome",
+      "timeframe": "X weeks/months"
     }
   ],
   "timeline": [
     {
-      "phase": "Phase name",
-      "duration": "Week X-Y",
-      "tasks": ["Task 1", "Task 2"]
+      "phase": 1,
+      "name": "Phase name",
+      "duration": "X weeks",
+      "activities": ["Activity 1", "Activity 2"],
+      "milestones": ["Milestone 1"]
     }
   ],
-  "budgetAllocation": [
+  "budget": {
+    "total": ${request.budget},
+    "breakdown": [
+      {"category": "Category", "amount": X, "percentage": X}
+    ],
+    "freeAlternatives": ["Free tool 1", "Free tool 2"]
+  },
+  "metrics": [
     {
-      "category": "Category name",
-      "percentage": 30,
-      "amount": "$X/month",
-      "tools": ["Tool 1", "Tool 2"]
+      "metric": "KPI name",
+      "target": "Specific target",
+      "measurementMethod": "How to measure"
     }
   ],
-  "quickWins": ["Quick win 1", "Quick win 2", "Quick win 3"]
-}`;
+  "quickWins": ["Quick win 1 (achievable in <2 weeks)", "Quick win 2", "Quick win 3"]
 }
 
-// Call AI provider
-async function callAIProvider(
-  provider: keyof typeof AI_PROVIDERS,
-  prompt: string
-): Promise<string | null> {
-  const config = AI_PROVIDERS[provider];
-  
-  const apiKey = provider === 'groq' 
-    ? process.env.GROQ_API_KEY
-    : provider === 'perplexity'
-    ? process.env.PERPLEXITY_API_KEY
-    : process.env.OPENAI_API_KEY;
+Return ONLY valid JSON, no markdown, no explanation.`;
+}
 
-  if (!apiKey) {
-    console.log(`[AI Strategy] No API key for ${provider}`);
-    return null;
+// ============================================================================
+// AI PROVIDER CALLS
+// ============================================================================
+
+async function callGroq(prompt: string): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY not configured');
+
+  const response = await fetch(AI_PROVIDERS.groq.endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: AI_PROVIDERS.groq.model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 4000,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Groq API error: ${error}`);
   }
 
-  try {
-    const response = await fetch(`${config.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert marketing strategist. Always respond with valid JSON only, no markdown.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 2000,
-      }),
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+async function callPerplexity(prompt: string): Promise<string> {
+  const apiKey = process.env.PERPLEXITY_API_KEY;
+  if (!apiKey) throw new Error('PERPLEXITY_API_KEY not configured');
+
+  const response = await fetch(AI_PROVIDERS.perplexity.endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: AI_PROVIDERS.perplexity.model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 4000,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Perplexity API error: ${error}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+async function callOpenAI(prompt: string): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
+
+  const response = await fetch(AI_PROVIDERS.openai.endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: AI_PROVIDERS.openai.model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 4000,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`OpenAI API error: ${error}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+// ============================================================================
+// CRAV RECOMMENDATIONS
+// ============================================================================
+
+function generateCravRecommendations(
+  channels: string[],
+  industry: string
+): CravRecommendation[] {
+  const recommendations: CravRecommendation[] = [];
+
+  // Map channels to CRAV tools
+  const channelToolMap: Record<string, string[]> = {
+    social: ['crav-social-graphics'],
+    email: ['crav-email-builder'],
+    video: ['crav-video-creator'],
+    content: ['crav-writing-assistant'],
+    seo: ['crav-seo-analyzer'],
+  };
+
+  for (const channel of channels) {
+    const toolIds = channelToolMap[channel] || [];
+    for (const toolId of toolIds) {
+      const tool = CRAV_TOOLS.find((t) => t.id === toolId);
+      if (tool) {
+        recommendations.push({
+          productName: tool.name,
+          productUrl: tool.url,
+          reason: `Enhance your ${channel} marketing with AI-powered ${tool.description.toLowerCase()}`,
+          relevance: 'high',
+        });
+      }
+    }
+  }
+
+  // Add general recommendations based on industry
+  if (['ecommerce', 'saas', 'agency'].includes(industry)) {
+    recommendations.push({
+      productName: 'CRAV Analytics Dashboard',
+      productUrl: 'https://craudiovizai.com/tools/analytics',
+      reason: 'Track all your marketing metrics in one place',
+      relevance: 'medium',
     });
-
-    if (!response.ok) {
-      console.log(`[AI Strategy] ${provider} returned ${response.status}`);
-      return null;
-    }
-
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || null;
-  } catch (error) {
-    console.error(`[AI Strategy] ${provider} error:`, error);
-    return null;
   }
+
+  return recommendations.slice(0, 5); // Max 5 recommendations
 }
 
-// Main strategy generation function with fallback
-export async function generateStrategy(request: StrategyRequest): Promise<MarketingStrategy> {
+// ============================================================================
+// MAIN STRATEGY GENERATOR
+// ============================================================================
+
+export async function generateStrategy(
+  request: StrategyRequest
+): Promise<{ strategy: MarketingStrategy; provider: string }> {
   const prompt = buildStrategyPrompt(request);
-  
-  // Try providers in priority order
-  const providers: (keyof typeof AI_PROVIDERS)[] = ['groq', 'perplexity', 'openai'];
-  let response: string | null = null;
-  let usedProvider = '';
+  let rawResponse: string;
+  let provider: string;
 
-  for (const provider of providers) {
-    console.log(`[AI Strategy] Trying ${provider}...`);
-    response = await callAIProvider(provider, prompt);
-    if (response) {
-      usedProvider = provider;
-      console.log(`[AI Strategy] Success with ${provider}`);
-      break;
+  // Try providers in order: Groq (FREE) → Perplexity → OpenAI
+  try {
+    rawResponse = await callGroq(prompt);
+    provider = 'Groq';
+  } catch (groqError) {
+    console.warn('Groq failed, trying Perplexity:', groqError);
+    try {
+      rawResponse = await callPerplexity(prompt);
+      provider = 'Perplexity';
+    } catch (perplexityError) {
+      console.warn('Perplexity failed, trying OpenAI:', perplexityError);
+      rawResponse = await callOpenAI(prompt);
+      provider = 'OpenAI';
     }
-  }
-
-  if (!response) {
-    // Return fallback strategy if all providers fail
-    return generateFallbackStrategy(request);
   }
 
   // Parse JSON response
+  let parsed;
   try {
-    // Clean up response (remove markdown if present)
-    const cleanResponse = response
+    // Clean up potential markdown formatting
+    const cleanJson = rawResponse
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
       .trim();
-    
-    const parsed = JSON.parse(cleanResponse);
-    
-    // Add CRAV recommendations based on channels
-    const cravRecommendations = getCravPlatforms().filter(p => 
-      request.channels.some(c => p.category.includes(c.toLowerCase()))
-    );
-
-    return {
-      id: `strategy_${Date.now()}`,
-      overview: parsed.overview || 'Marketing strategy generated successfully.',
-      channels: parsed.channels || [],
-      timeline: parsed.timeline || [],
-      budgetAllocation: parsed.budgetAllocation || [],
-      quickWins: parsed.quickWins || [],
-      cravRecommendations: cravRecommendations.slice(0, 5),
-      generatedAt: new Date().toISOString(),
-    };
+    parsed = JSON.parse(cleanJson);
   } catch (parseError) {
-    console.error('[AI Strategy] Parse error:', parseError);
-    return generateFallbackStrategy(request);
+    console.error('Failed to parse AI response:', rawResponse);
+    throw new Error('Failed to parse strategy response');
   }
-}
 
-// Fallback strategy when AI fails
-function generateFallbackStrategy(request: StrategyRequest): MarketingStrategy {
-  const freePlatforms = getPlatformsByTier('free');
-  const cravPlatforms = getCravPlatforms();
-  
-  const channelStrategies: ChannelStrategy[] = request.channels.map(channel => {
-    const relevantPlatforms = freePlatforms
-      .filter(p => p.category === channel || p.name.toLowerCase().includes(channel))
-      .slice(0, 3);
-    
-    return {
-      channel: channel.charAt(0).toUpperCase() + channel.slice(1),
-      tactics: [
-        `Establish presence on ${channel} platforms`,
-        'Create consistent posting schedule',
-        'Engage with target audience daily',
-        'Track and analyze performance metrics',
-      ],
-      platforms: relevantPlatforms.map(p => p.name),
-      kpis: ['Engagement rate', 'Follower growth', 'Click-through rate'],
-      estimatedCost: 'FREE (using free tier tools)',
-    };
-  });
-
-  return {
-    id: `strategy_fallback_${Date.now()}`,
-    overview: `A ${request.budget === 'zero' ? 'zero-budget' : 'cost-effective'} marketing strategy for ${request.businessName} focused on ${request.goal} through ${request.channels.join(', ')} channels.`,
-    channels: channelStrategies,
-    timeline: [
-      {
-        phase: 'Foundation',
-        duration: 'Week 1-2',
-        tasks: [
-          'Set up all free platform accounts',
-          'Create brand guidelines and templates',
-          'Audit existing online presence',
-        ],
-      },
-      {
-        phase: 'Launch',
-        duration: 'Week 3-4',
-        tasks: [
-          'Begin consistent content posting',
-          'Engage with target communities',
-          'Set up tracking and analytics',
-        ],
-      },
-      {
-        phase: 'Growth',
-        duration: 'Week 5-12',
-        tasks: [
-          'Optimize based on performance data',
-          'Scale successful tactics',
-          'Test new content formats',
-        ],
-      },
-    ],
-    budgetAllocation: [
-      {
-        category: 'Content Creation',
-        percentage: 40,
-        amount: 'FREE (using AI tools)',
-        tools: ['Canva Free', 'CRAV Tools'],
-      },
-      {
-        category: 'Platform Management',
-        percentage: 30,
-        amount: 'FREE',
-        tools: ['Buffer Free', 'Later Free'],
-      },
-      {
-        category: 'Analytics',
-        percentage: 20,
-        amount: 'FREE',
-        tools: ['Google Analytics', 'Platform insights'],
-      },
-      {
-        category: 'Reserve',
-        percentage: 10,
-        amount: 'Save for future scaling',
-        tools: [],
-      },
-    ],
-    quickWins: [
-      'Claim Google Business Profile today',
-      'Post first content piece this week',
-      'Join 3 relevant online communities',
-      'Set up email capture on website',
-      'Create social media content calendar',
-    ],
-    cravRecommendations: cravPlatforms.slice(0, 5),
+  // Build final strategy object
+  const strategy: MarketingStrategy = {
+    id: `strategy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    summary: `Marketing strategy for ${request.businessName}`,
+    executiveSummary: parsed.executiveSummary,
+    targetAudience: parsed.targetAudience,
+    channels: parsed.channels || [],
+    timeline: parsed.timeline || [],
+    budget: parsed.budget || {
+      total: request.budget,
+      breakdown: [],
+      freeAlternatives: [],
+    },
+    metrics: parsed.metrics || [],
+    quickWins: parsed.quickWins || [],
+    cravRecommendations: generateCravRecommendations(request.platforms, request.industry),
     generatedAt: new Date().toISOString(),
+    aiProvider: provider,
   };
+
+  return { strategy, provider };
 }
 
-// Track strategy generation for analytics
-export async function trackStrategyGeneration(
-  userId: string,
-  strategyId: string,
-  request: StrategyRequest
-): Promise<void> {
-  // This would log to Supabase analytics table
-  console.log('[Analytics] Strategy generated:', {
-    userId,
-    strategyId,
-    industry: request.industry,
-    goal: request.goal,
-    budget: request.budget,
-    timestamp: new Date().toISOString(),
-  });
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+export function estimateStrategyCredits(request: StrategyRequest): number {
+  // Base cost + complexity modifiers
+  let credits = 10;
+  if (request.platforms.length > 3) credits += 5;
+  if (request.targetArea === 'zip') credits += 10;
+  if (request.competitors && request.competitors.length > 0) credits += 5;
+  return credits;
+}
+
+export function validateStrategyRequest(request: StrategyRequest): string[] {
+  const errors: string[] = [];
+
+  if (!request.businessName?.trim()) {
+    errors.push('Business name is required');
+  }
+  if (!request.industry) {
+    errors.push('Industry is required');
+  }
+  if (!request.goal) {
+    errors.push('Campaign goal is required');
+  }
+  if (request.budget < 0) {
+    errors.push('Budget cannot be negative');
+  }
+  if (!request.platforms || request.platforms.length === 0) {
+    errors.push('At least one marketing channel is required');
+  }
+
+  return errors;
 }

@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { query, competitors, industry, timeframe } = body;
+    const { query, competitors, industry } = body;
 
     if (!query) {
       return NextResponse.json(
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       mainTopic: {
-        query,
+        searchQuery: query,
         ...mainResearch,
       },
       competitors: competitorResearch,
@@ -199,7 +199,6 @@ export async function POST(request: NextRequest) {
       meta: {
         query,
         competitorsAnalyzed: Object.keys(competitorResearch).length,
-        timeframe: timeframe || '30 days',
         timestamp: new Date().toISOString(),
       },
     });

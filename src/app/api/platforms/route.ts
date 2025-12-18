@@ -1,138 +1,168 @@
 // ============================================================================
-// CR AUDIOVIZ AI - PLATFORMS API
+// CR AUDIOVIZ AI - PLATFORMS FINDER API
 // GET /api/platforms - Search and filter marketing platforms
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  PLATFORMS, 
-  getPlatformsByCategory, 
-  getPlatformsByTier, 
+import {
+  PLATFORMS,
+  PLATFORM_CATEGORIES,
+  CRAV_TOOLS,
+  getPlatformsByCategory,
+  getPlatformsByTier,
+  getFreePlatforms,
   searchPlatforms,
-  getCravPlatforms,
   type PlatformCategory,
-  type PlatformTier,
 } from '@/config/platforms';
 
 export async function GET(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
-    const category = searchParams.get('category') as PlatformCategory | null;
-    const tier = searchParams.get('tier') as PlatformTier | null;
-    const query = searchParams.get('q');
-    const cravOnly = searchParams.get('crav') === 'true';
+  const { searchParams } = new URL(request.url);
 
-    let platforms = [...PLATFORMS];
+  const query = searchParams.get('q');
+  const category = searchParams.get('category') as PlatformCategory | null;
+  const tier = searchParams.get('tier') as 'free' | 'budget' | 'premium' | null;
+  const includeCrav = searchParams.get('includeCrav') !== 'false';
+  const limit = parseInt(searchParams.get('limit') || '50');
 
-    // Filter by category
-    if (category) {
-      platforms = getPlatformsByCategory(category);
-    }
+  let platforms = [...PLATFORMS];
 
-    // Filter by tier
-    if (tier) {
-      platforms = platforms.filter(p => p.tier === tier);
-    }
-
-    // Search by query
-    if (query) {
-      const searchResults = searchPlatforms(query);
-      platforms = platforms.filter(p => searchResults.some(s => s.id === p.id));
-    }
-
-    // Filter CRAV only
-    if (cravOnly) {
-      platforms = platforms.filter(p => p.isCrav);
-    }
-
-    // Sort: FREE first, then CRAV highlighted, then budget, then premium
-    platforms.sort((a, b) => {
-      // Tier priority
-      const tierOrder = { free: 0, budget: 1, premium: 2 };
-      const tierDiff = tierOrder[a.tier] - tierOrder[b.tier];
-      if (tierDiff !== 0) return tierDiff;
-      
-      // CRAV products first within same tier
-      if (a.isCrav && !b.isCrav) return -1;
-      if (!a.isCrav && b.isCrav) return 1;
-      
-      return 0;
-    });
-
-    // Get statistics
-    const stats = {
-      total: PLATFORMS.length,
-      free: PLATFORMS.filter(p => p.tier === 'free').length,
-      budget: PLATFORMS.filter(p => p.tier === 'budget').length,
-      premium: PLATFORMS.filter(p => p.tier === 'premium').length,
-      crav: getCravPlatforms().length,
-    };
-
-    return NextResponse.json({
-      success: true,
-      platforms,
-      count: platforms.length,
-      stats,
-      filters: {
-        category,
-        tier,
-        query,
-        cravOnly,
-      },
-    });
-  } catch (error) {
-    console.error('[Platforms API] Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch platforms' },
-      { status: 500 }
-    );
+  // Apply search query
+  if (query) {
+    platforms = searchPlatforms(query);
   }
+
+  // Apply category filter
+  if (category && PLATFORM_CATEGORIES.find((c) => c.id === category)) {
+    platforms = platforms.filter((p) => p.category === category);
+  }
+
+  // Apply tier filter
+  if (tier && ['free', 'budget', 'premium'].includes(tier)) {
+    platforms = platforms.filter((p) => p.tier === tier);
+  }
+
+  // Sort: FREE first, then budget, then premium
+  platforms.sort((a, b) => {
+    const tierOrder = { free: 0, budget: 1, premium: 2 };
+    return tierOrder[a.tier] - tierOrder[b.tier];
+  });
+
+  // Apply limit
+  platforms = platforms.slice(0, limit);
+
+  // Get CRAV alternatives if requested
+  const cravAlternatives = includeCrav
+    ? CRAV_TOOLS.filter((tool) => {
+        if (category) {
+          return tool.category === category;
+        }
+        return true;
+      })
+    : [];
+
+  // Calculate stats
+  const stats = {
+    total: PLATFORMS.length,
+    free: getFreePlatforms().length,
+    budget: getPlatformsByTier('budget').length,
+    premium: getPlatformsByTier('premium').length,
+    byCategory: PLATFORM_CATEGORIES.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      count: getPlatformsByCategory(cat.id).length,
+    })),
+  };
+
+  return NextResponse.json({
+    success: true,
+    platforms,
+    cravAlternatives,
+    categories: PLATFORM_CATEGORIES,
+    stats,
+    meta: {
+      query,
+      category,
+      tier,
+      returned: platforms.length,
+      timestamp: new Date().toISOString(),
+    },
+  });
 }
 
-// POST /api/platforms - Get recommendations based on business needs
+// POST endpoint for personalized recommendations
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { industry, goals, budget, channels } = body;
+    const { industry, goal, budget, channels } = body;
 
+    // Get relevant platforms based on criteria
     let recommendations = [...PLATFORMS];
 
-    // Filter by budget preference
-    if (budget === 'zero') {
-      recommendations = recommendations.filter(p => p.tier === 'free');
-    } else if (budget === 'micro' || budget === 'small') {
-      recommendations = recommendations.filter(p => p.tier === 'free' || p.tier === 'budget');
+    // Filter by budget
+    if (budget === 0) {
+      recommendations = recommendations.filter((p) => p.tier === 'free');
+    } else if (budget < 500) {
+      recommendations = recommendations.filter((p) => p.tier !== 'premium');
     }
 
-    // Filter by channels if specified
+    // Filter by channels
     if (channels && channels.length > 0) {
-      recommendations = recommendations.filter(p => 
-        channels.some((c: string) => p.category.toLowerCase().includes(c.toLowerCase()))
+      recommendations = recommendations.filter((p) =>
+        channels.includes(p.category)
       );
     }
 
-    // Sort by relevance (CRAV first, then free, then alphabetical)
+    // Sort by relevance (FREE first)
     recommendations.sort((a, b) => {
-      if (a.isCrav && !b.isCrav) return -1;
-      if (!a.isCrav && b.isCrav) return 1;
-      if (a.tier === 'free' && b.tier !== 'free') return -1;
-      if (a.tier !== 'free' && b.tier === 'free') return 1;
-      return a.name.localeCompare(b.name);
+      const tierOrder = { free: 0, budget: 1, premium: 2 };
+      return tierOrder[a.tier] - tierOrder[b.tier];
     });
 
-    // Limit recommendations
-    const topRecommendations = recommendations.slice(0, 15);
+    // Get matching CRAV tools
+    const cravRecommendations = CRAV_TOOLS.filter((tool) =>
+      channels?.includes(tool.category)
+    ).map((tool) => ({
+      ...tool,
+      reason: `Enhance your ${tool.category} marketing with AI`,
+    }));
+
+    // Generate insights
+    const insights: string[] = [];
+    
+    if (budget === 0) {
+      insights.push(
+        `Found ${recommendations.length} FREE platforms for your marketing needs`
+      );
+    }
+    
+    const freeCount = recommendations.filter((p) => p.tier === 'free').length;
+    if (freeCount > 0) {
+      insights.push(
+        `${freeCount} of these are completely FREE to use`
+      );
+    }
+
+    if (cravRecommendations.length > 0) {
+      insights.push(
+        `${cravRecommendations.length} CRAV tools can help automate your workflow`
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      recommendations: topRecommendations,
-      totalMatches: recommendations.length,
-      criteria: { industry, goals, budget, channels },
+      recommendations: recommendations.slice(0, 20),
+      cravRecommendations,
+      insights,
+      meta: {
+        criteria: { industry, goal, budget, channels },
+        totalMatches: recommendations.length,
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
-    console.error('[Platforms API] Error:', error);
+    console.error('Platform recommendations error:', error);
     return NextResponse.json(
-      { error: 'Failed to get recommendations' },
+      { success: false, error: 'Failed to generate recommendations' },
       { status: 500 }
     );
   }

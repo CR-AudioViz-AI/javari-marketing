@@ -4,7 +4,6 @@
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { CRAV_TOOLS } from '@/config/platforms';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -251,8 +250,9 @@ export async function GET(request: NextRequest) {
     matchReason = 'Popular CRAV tools';
   }
 
-  // Remove duplicates and limit
-  const uniqueRecommendations = [...new Map(recommendations.map((p) => [p.id, p])).values()];
+  // Remove duplicates and limit - use Array.from for TypeScript compatibility
+  const productMap = new Map(recommendations.map((p) => [p.id, p]));
+  const uniqueRecommendations = Array.from(productMap.values());
   const finalRecommendations = uniqueRecommendations.slice(0, limit);
 
   return NextResponse.json({

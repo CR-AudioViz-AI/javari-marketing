@@ -1,675 +1,825 @@
 // ============================================================================
 // CR AUDIOVIZ AI - MARKETING PLATFORMS DATABASE
-// 100+ platforms organized by category with FREE tier emphasis
+// 100+ platforms organized by tier (FREE → Budget → Premium)
 // ============================================================================
 
-export type PlatformTier = 'free' | 'budget' | 'premium';
-export type PlatformCategory = 
-  | 'social' 
-  | 'email' 
-  | 'seo' 
-  | 'content' 
-  | 'local' 
-  | 'community' 
-  | 'video' 
-  | 'analytics' 
-  | 'ads' 
-  | 'automation';
-
-export interface Platform {
+export interface MarketingPlatform {
   id: string;
   name: string;
   category: PlatformCategory;
-  tier: PlatformTier;
+  tier: 'free' | 'budget' | 'premium';
   description: string;
   url: string;
-  freeLimit?: string;
   pricing?: string;
-  isCrav?: boolean; // Is this a CR AudioViz AI product?
   features: string[];
+  bestFor: string[];
+  cravAlternative?: {
+    name: string;
+    url: string;
+    description: string;
+  };
 }
 
-export const PLATFORMS: Platform[] = [
-  // ============================================================================
-  // SOCIAL MEDIA - FREE
-  // ============================================================================
+export type PlatformCategory =
+  | 'social'
+  | 'email'
+  | 'seo'
+  | 'content'
+  | 'analytics'
+  | 'ads'
+  | 'community'
+  | 'video'
+  | 'design'
+  | 'local'
+  | 'pr'
+  | 'automation';
+
+export const PLATFORM_CATEGORIES: { id: PlatformCategory; name: string; icon: string }[] = [
+  { id: 'social', name: 'Social Media', icon: 'share-2' },
+  { id: 'email', name: 'Email Marketing', icon: 'mail' },
+  { id: 'seo', name: 'SEO Tools', icon: 'search' },
+  { id: 'content', name: 'Content Marketing', icon: 'file-text' },
+  { id: 'analytics', name: 'Analytics', icon: 'bar-chart-3' },
+  { id: 'ads', name: 'Advertising', icon: 'megaphone' },
+  { id: 'community', name: 'Community', icon: 'users' },
+  { id: 'video', name: 'Video Marketing', icon: 'video' },
+  { id: 'design', name: 'Design Tools', icon: 'palette' },
+  { id: 'local', name: 'Local Marketing', icon: 'map-pin' },
+  { id: 'pr', name: 'PR & Outreach', icon: 'newspaper' },
+  { id: 'automation', name: 'Automation', icon: 'zap' },
+];
+
+// ============================================================================
+// PLATFORMS DATABASE - 100+ PLATFORMS
+// ============================================================================
+
+export const PLATFORMS: MarketingPlatform[] = [
+  // ========== SOCIAL MEDIA - FREE ==========
   {
     id: 'buffer-free',
     name: 'Buffer (Free)',
     category: 'social',
     tier: 'free',
-    description: 'Schedule posts to 3 social channels',
+    description: 'Schedule posts to 3 social channels with basic analytics',
     url: 'https://buffer.com',
-    freeLimit: '3 channels, 10 posts/channel',
-    features: ['Post scheduling', 'Basic analytics', 'Link shortening'],
+    pricing: 'Free for 3 channels',
+    features: ['3 social accounts', '10 scheduled posts', 'Basic analytics'],
+    bestFor: ['Solopreneurs', 'Small businesses', 'Beginners'],
   },
   {
     id: 'later-free',
     name: 'Later (Free)',
     category: 'social',
     tier: 'free',
-    description: 'Visual social media planner',
+    description: 'Visual social media planner with Instagram focus',
     url: 'https://later.com',
-    freeLimit: '1 social set, 30 posts/month',
-    features: ['Visual planner', 'Linkin.bio', 'Basic analytics'],
-  },
-  {
-    id: 'canva-free',
-    name: 'Canva (Free)',
-    category: 'social',
-    tier: 'free',
-    description: 'Design social media graphics',
-    url: 'https://canva.com',
-    freeLimit: '250,000+ templates',
-    features: ['Templates', 'Stock photos', 'Basic editing'],
-  },
-  {
-    id: 'crav-social-graphics',
-    name: 'CRAV Social Graphics ⭐',
-    category: 'social',
-    tier: 'free',
-    description: 'AI-powered social media graphics generator',
-    url: 'https://craudiovizai.com/tools/social-graphics',
-    isCrav: true,
-    features: ['AI generation', 'Brand consistency', 'Multi-platform sizing'],
+    pricing: 'Free for 1 profile per platform',
+    features: ['Visual planner', 'Instagram focus', 'Linkin.bio'],
+    bestFor: ['Instagram creators', 'Visual brands'],
   },
   {
     id: 'tweetdeck',
     name: 'TweetDeck',
     category: 'social',
     tier: 'free',
-    description: 'Advanced Twitter/X management',
+    description: 'Free Twitter/X management dashboard',
     url: 'https://tweetdeck.twitter.com',
-    freeLimit: 'Unlimited with X account',
-    features: ['Multi-column view', 'Scheduling', 'Lists management'],
+    pricing: 'Free',
+    features: ['Multiple columns', 'Scheduled tweets', 'Team accounts'],
+    bestFor: ['Twitter power users', 'News monitoring'],
+  },
+  {
+    id: 'canva-social',
+    name: 'Canva (Free)',
+    category: 'social',
+    tier: 'free',
+    description: 'Design social media graphics with templates',
+    url: 'https://canva.com',
+    pricing: 'Free with limits',
+    features: ['Templates', 'Basic editing', 'Social sizes'],
+    bestFor: ['Non-designers', 'Quick graphics'],
+    cravAlternative: {
+      name: 'CRAV Social Graphics',
+      url: 'https://craudiovizai.com/tools/social-graphics',
+      description: 'AI-powered social media graphics generator',
+    },
   },
 
-  // ============================================================================
-  // SOCIAL MEDIA - BUDGET
-  // ============================================================================
+  // ========== SOCIAL MEDIA - BUDGET ==========
   {
     id: 'buffer-essentials',
     name: 'Buffer Essentials',
     category: 'social',
     tier: 'budget',
-    description: 'Professional social media management',
+    description: 'Advanced scheduling with engagement tools',
     url: 'https://buffer.com',
-    pricing: '$6/month per channel',
-    features: ['Unlimited posts', 'Advanced analytics', 'Team collaboration'],
+    pricing: '$6/mo per channel',
+    features: ['Unlimited posts', 'Engagement tools', 'Analytics'],
+    bestFor: ['Growing businesses', 'Agencies'],
   },
   {
     id: 'hootsuite-pro',
-    name: 'Hootsuite Pro',
+    name: 'Hootsuite Professional',
     category: 'social',
     tier: 'budget',
-    description: 'Comprehensive social management',
+    description: 'Comprehensive social media management',
     url: 'https://hootsuite.com',
-    pricing: '$99/month',
-    features: ['10 social accounts', 'Scheduling', 'Analytics'],
+    pricing: '$99/mo',
+    features: ['10 social accounts', 'Scheduling', 'Analytics', 'Team features'],
+    bestFor: ['Mid-size businesses', 'Marketing teams'],
   },
 
-  // ============================================================================
-  // EMAIL MARKETING - FREE
-  // ============================================================================
+  // ========== SOCIAL MEDIA - PREMIUM ==========
+  {
+    id: 'sprout-social',
+    name: 'Sprout Social',
+    category: 'social',
+    tier: 'premium',
+    description: 'Enterprise social media management',
+    url: 'https://sproutsocial.com',
+    pricing: '$249/mo',
+    features: ['5 profiles', 'CRM', 'Advanced analytics', 'Listening'],
+    bestFor: ['Enterprise', 'Agencies'],
+  },
+
+  // ========== EMAIL MARKETING - FREE ==========
   {
     id: 'mailchimp-free',
     name: 'Mailchimp (Free)',
     category: 'email',
     tier: 'free',
-    description: 'Email marketing for small lists',
+    description: 'Email marketing with 500 contacts free',
     url: 'https://mailchimp.com',
-    freeLimit: '500 contacts, 1,000 sends/month',
-    features: ['Templates', 'Basic automation', 'Landing pages'],
+    pricing: 'Free up to 500 contacts',
+    features: ['500 contacts', '1,000 sends/mo', 'Basic templates'],
+    bestFor: ['Startups', 'Small lists'],
+    cravAlternative: {
+      name: 'CRAV Email Builder',
+      url: 'https://craudiovizai.com/tools/email-builder',
+      description: 'AI-powered email template generator',
+    },
+  },
+  {
+    id: 'sender-free',
+    name: 'Sender (Free)',
+    category: 'email',
+    tier: 'free',
+    description: 'Generous free tier for email marketing',
+    url: 'https://sender.net',
+    pricing: 'Free up to 2,500 contacts',
+    features: ['2,500 contacts', '15,000 emails/mo', 'Automation'],
+    bestFor: ['Budget-conscious', 'Growing lists'],
   },
   {
     id: 'mailerlite-free',
     name: 'MailerLite (Free)',
     category: 'email',
     tier: 'free',
-    description: 'Clean email marketing platform',
+    description: 'Modern email marketing with landing pages',
     url: 'https://mailerlite.com',
-    freeLimit: '1,000 subscribers, 12,000 emails/month',
-    features: ['Drag-drop editor', 'Automation', 'Landing pages'],
-  },
-  {
-    id: 'sendinblue-free',
-    name: 'Brevo (Free)',
-    category: 'email',
-    tier: 'free',
-    description: 'Email & SMS marketing',
-    url: 'https://brevo.com',
-    freeLimit: '300 emails/day',
-    features: ['Unlimited contacts', 'Templates', 'Basic automation'],
+    pricing: 'Free up to 1,000 subscribers',
+    features: ['1,000 subscribers', '12,000 emails/mo', 'Landing pages'],
+    bestFor: ['Creators', 'Newsletters'],
   },
   {
     id: 'buttondown',
     name: 'Buttondown (Free)',
     category: 'email',
     tier: 'free',
-    description: 'Simple newsletter tool',
+    description: 'Simple newsletter tool for writers',
     url: 'https://buttondown.email',
-    freeLimit: '100 subscribers',
-    features: ['Markdown support', 'Simple UI', 'RSS integration'],
-  },
-  {
-    id: 'crav-email-builder',
-    name: 'CRAV Email Builder ⭐',
-    category: 'email',
-    tier: 'free',
-    description: 'AI-powered email template generator',
-    url: 'https://craudiovizai.com/tools/email-builder',
-    isCrav: true,
-    features: ['AI copywriting', 'Responsive templates', 'A/B suggestions'],
+    pricing: 'Free up to 100 subscribers',
+    features: ['Markdown support', 'Simple UI', 'RSS to email'],
+    bestFor: ['Writers', 'Minimalists'],
   },
 
-  // ============================================================================
-  // SEO - FREE
-  // ============================================================================
+  // ========== EMAIL - BUDGET ==========
+  {
+    id: 'convertkit',
+    name: 'ConvertKit',
+    category: 'email',
+    tier: 'budget',
+    description: 'Email marketing for creators',
+    url: 'https://convertkit.com',
+    pricing: '$29/mo for 1,000 subscribers',
+    features: ['Visual automations', 'Landing pages', 'Creator network'],
+    bestFor: ['Creators', 'Course sellers'],
+  },
+  {
+    id: 'beehiiv',
+    name: 'Beehiiv',
+    category: 'email',
+    tier: 'budget',
+    description: 'Newsletter platform with growth tools',
+    url: 'https://beehiiv.com',
+    pricing: '$49/mo',
+    features: ['Recommendations', 'Monetization', 'Analytics'],
+    bestFor: ['Newsletter businesses', 'Media companies'],
+  },
+
+  // ========== SEO TOOLS - FREE ==========
   {
     id: 'google-search-console',
     name: 'Google Search Console',
     category: 'seo',
     tier: 'free',
-    description: 'Official Google SEO tool',
+    description: 'Official Google SEO tool - essential and free',
     url: 'https://search.google.com/search-console',
-    freeLimit: 'Unlimited',
-    features: ['Search analytics', 'Indexing', 'Core Web Vitals'],
+    pricing: 'Free',
+    features: ['Search performance', 'Index coverage', 'Core Web Vitals'],
+    bestFor: ['Everyone with a website'],
   },
   {
     id: 'google-analytics',
     name: 'Google Analytics 4',
     category: 'seo',
     tier: 'free',
-    description: 'Website analytics',
+    description: 'Comprehensive website analytics',
     url: 'https://analytics.google.com',
-    freeLimit: 'Unlimited',
-    features: ['Traffic analysis', 'Conversion tracking', 'Audience insights'],
+    pricing: 'Free',
+    features: ['Traffic analysis', 'Conversions', 'Audience insights'],
+    bestFor: ['All websites'],
   },
   {
     id: 'ubersuggest-free',
     name: 'Ubersuggest (Free)',
     category: 'seo',
     tier: 'free',
-    description: 'Keyword research tool',
+    description: 'Keyword research with limited free searches',
     url: 'https://neilpatel.com/ubersuggest',
-    freeLimit: '3 searches/day',
-    features: ['Keyword ideas', 'Content ideas', 'Competitor analysis'],
+    pricing: 'Free with limits',
+    features: ['3 searches/day', 'Keyword ideas', 'Basic metrics'],
+    bestFor: ['Beginners', 'Quick research'],
   },
   {
     id: 'answerthepublic',
-    name: 'Answer The Public',
+    name: 'AnswerThePublic (Free)',
     category: 'seo',
     tier: 'free',
-    description: 'Question-based keyword research',
+    description: 'Find questions people ask about any topic',
     url: 'https://answerthepublic.com',
-    freeLimit: '3 searches/day',
-    features: ['Question keywords', 'Visual data', 'Content ideas'],
+    pricing: 'Free with limits',
+    features: ['Question research', 'Visual maps', 'Content ideas'],
+    bestFor: ['Content planning', 'FAQ creation'],
   },
   {
-    id: 'crav-seo-analyzer',
-    name: 'CRAV SEO Analyzer ⭐',
+    id: 'seoquake',
+    name: 'SEOquake',
     category: 'seo',
     tier: 'free',
-    description: 'AI-powered SEO audit tool',
-    url: 'https://craudiovizai.com/tools/seo-analyzer',
-    isCrav: true,
-    features: ['AI recommendations', 'Competitor comparison', 'Action items'],
+    description: 'Free browser extension for SEO metrics',
+    url: 'https://seoquake.com',
+    pricing: 'Free',
+    features: ['SERP overlay', 'Page audit', 'Compare domains'],
+    bestFor: ['Quick SEO checks', 'Competitor analysis'],
   },
 
-  // ============================================================================
-  // CONTENT - FREE
-  // ============================================================================
+  // ========== SEO - BUDGET ==========
   {
-    id: 'notion-free',
-    name: 'Notion (Free)',
-    category: 'content',
+    id: 'ahrefs-webmaster',
+    name: 'Ahrefs Webmaster Tools',
+    category: 'seo',
     tier: 'free',
-    description: 'All-in-one workspace',
-    url: 'https://notion.so',
-    freeLimit: 'Unlimited pages for individuals',
-    features: ['Notes', 'Databases', 'Templates'],
+    description: 'Free version of Ahrefs for your own site',
+    url: 'https://ahrefs.com/webmaster-tools',
+    pricing: 'Free for verified sites',
+    features: ['Backlink data', 'Site audit', 'Keyword ranking'],
+    bestFor: ['Site owners', 'Technical SEO'],
   },
+  {
+    id: 'semrush',
+    name: 'Semrush Pro',
+    category: 'seo',
+    tier: 'budget',
+    description: 'All-in-one SEO and marketing toolkit',
+    url: 'https://semrush.com',
+    pricing: '$129/mo',
+    features: ['Keyword research', 'Site audit', 'Competitor analysis'],
+    bestFor: ['SEO professionals', 'Agencies'],
+  },
+
+  // ========== CONTENT MARKETING - FREE ==========
   {
     id: 'medium',
     name: 'Medium',
     category: 'content',
     tier: 'free',
-    description: 'Publishing platform',
+    description: 'Free publishing platform with built-in audience',
     url: 'https://medium.com',
-    freeLimit: 'Unlimited publishing',
+    pricing: 'Free to publish',
     features: ['Built-in audience', 'Partner program', 'Publications'],
-  },
-  {
-    id: 'substack',
-    name: 'Substack',
-    category: 'content',
-    tier: 'free',
-    description: 'Newsletter platform',
-    url: 'https://substack.com',
-    freeLimit: 'Free forever (10% on paid)',
-    features: ['Newsletter', 'Podcast', 'Community'],
+    bestFor: ['Writers', 'Thought leaders'],
   },
   {
     id: 'hashnode',
     name: 'Hashnode',
     category: 'content',
     tier: 'free',
-    description: 'Developer blogging',
+    description: 'Free blogging platform for developers',
     url: 'https://hashnode.com',
-    freeLimit: 'Unlimited',
-    features: ['Custom domain', 'Markdown', 'Newsletter'],
+    pricing: 'Free',
+    features: ['Custom domain', 'Newsletter', 'Community'],
+    bestFor: ['Developers', 'Tech writers'],
   },
   {
-    id: 'crav-blog-writer',
-    name: 'CRAV Blog Writer ⭐',
+    id: 'substack',
+    name: 'Substack',
     category: 'content',
     tier: 'free',
-    description: 'AI blog content generator',
-    url: 'https://craudiovizai.com/tools/blog-writer',
-    isCrav: true,
-    features: ['AI writing', 'SEO optimization', 'Image suggestions'],
+    description: 'Newsletter platform with monetization',
+    url: 'https://substack.com',
+    pricing: 'Free (10% on paid subs)',
+    features: ['Newsletter', 'Podcasts', 'Paid subscriptions'],
+    bestFor: ['Independent writers', 'Journalists'],
+  },
+  {
+    id: 'notion-public',
+    name: 'Notion (Public Pages)',
+    category: 'content',
+    tier: 'free',
+    description: 'Create free public pages and docs',
+    url: 'https://notion.so',
+    pricing: 'Free',
+    features: ['Public pages', 'Databases', 'Collaboration'],
+    bestFor: ['Documentation', 'Resource hubs'],
+  },
+  {
+    id: 'grammarly-free',
+    name: 'Grammarly (Free)',
+    category: 'content',
+    tier: 'free',
+    description: 'Basic grammar and spelling checker',
+    url: 'https://grammarly.com',
+    pricing: 'Free with limits',
+    features: ['Grammar check', 'Spelling', 'Basic suggestions'],
+    bestFor: ['All writers'],
+    cravAlternative: {
+      name: 'CRAV Writing Assistant',
+      url: 'https://craudiovizai.com/tools/writing-assistant',
+      description: 'AI writing assistant with style suggestions',
+    },
   },
 
-  // ============================================================================
-  // LOCAL MARKETING - FREE
-  // ============================================================================
+  // ========== ANALYTICS - FREE ==========
   {
-    id: 'google-business',
-    name: 'Google Business Profile',
-    category: 'local',
-    tier: 'free',
-    description: 'Local business listing',
-    url: 'https://business.google.com',
-    freeLimit: 'Unlimited',
-    features: ['Maps listing', 'Reviews', 'Posts', 'Insights'],
-  },
-  {
-    id: 'yelp-free',
-    name: 'Yelp Business',
-    category: 'local',
-    tier: 'free',
-    description: 'Local business reviews',
-    url: 'https://biz.yelp.com',
-    freeLimit: 'Free listing',
-    features: ['Reviews', 'Photos', 'Business info'],
-  },
-  {
-    id: 'nextdoor',
-    name: 'Nextdoor Business',
-    category: 'local',
-    tier: 'free',
-    description: 'Neighborhood marketing',
-    url: 'https://business.nextdoor.com',
-    freeLimit: 'Free business page',
-    features: ['Local recommendations', 'Posts', 'Deals'],
-  },
-  {
-    id: 'facebook-local',
-    name: 'Facebook Local',
-    category: 'local',
-    tier: 'free',
-    description: 'Facebook business page',
-    url: 'https://facebook.com/business',
-    freeLimit: 'Free page',
-    features: ['Reviews', 'Events', 'Messaging'],
-  },
-
-  // ============================================================================
-  // COMMUNITY - FREE
-  // ============================================================================
-  {
-    id: 'reddit',
-    name: 'Reddit',
-    category: 'community',
-    tier: 'free',
-    description: 'Community engagement',
-    url: 'https://reddit.com',
-    freeLimit: 'Unlimited',
-    features: ['Subreddits', 'AMAs', 'Community building'],
-  },
-  {
-    id: 'discord-free',
-    name: 'Discord',
-    category: 'community',
-    tier: 'free',
-    description: 'Community server',
-    url: 'https://discord.com',
-    freeLimit: 'Unlimited servers',
-    features: ['Voice/text chat', 'Bots', 'Roles'],
-  },
-  {
-    id: 'slack-free',
-    name: 'Slack (Free)',
-    category: 'community',
-    tier: 'free',
-    description: 'Team communication',
-    url: 'https://slack.com',
-    freeLimit: '90-day history',
-    features: ['Channels', 'Integrations', 'File sharing'],
-  },
-  {
-    id: 'circle-free',
-    name: 'Circle (Free Trial)',
-    category: 'community',
-    tier: 'free',
-    description: 'Community platform',
-    url: 'https://circle.so',
-    freeLimit: '14-day trial',
-    features: ['Spaces', 'Events', 'Courses'],
-  },
-
-  // ============================================================================
-  // VIDEO - FREE
-  // ============================================================================
-  {
-    id: 'youtube',
-    name: 'YouTube',
-    category: 'video',
-    tier: 'free',
-    description: 'Video hosting platform',
-    url: 'https://youtube.com',
-    freeLimit: 'Unlimited uploads',
-    features: ['Monetization', 'Analytics', 'Community'],
-  },
-  {
-    id: 'loom-free',
-    name: 'Loom (Free)',
-    category: 'video',
-    tier: 'free',
-    description: 'Screen recording',
-    url: 'https://loom.com',
-    freeLimit: '25 videos, 5 min each',
-    features: ['Screen recording', 'Sharing', 'Comments'],
-  },
-  {
-    id: 'tiktok',
-    name: 'TikTok',
-    category: 'video',
-    tier: 'free',
-    description: 'Short-form video',
-    url: 'https://tiktok.com',
-    freeLimit: 'Unlimited',
-    features: ['Creator tools', 'Analytics', 'Shop'],
-  },
-  {
-    id: 'capcut',
-    name: 'CapCut',
-    category: 'video',
-    tier: 'free',
-    description: 'Video editing',
-    url: 'https://capcut.com',
-    freeLimit: 'Free with watermark option',
-    features: ['AI editing', 'Effects', 'Templates'],
-  },
-  {
-    id: 'crav-video-creator',
-    name: 'CRAV Video Creator ⭐',
-    category: 'video',
-    tier: 'free',
-    description: 'AI video generation',
-    url: 'https://craudiovizai.com/tools/video-creator',
-    isCrav: true,
-    features: ['AI avatars', 'Text-to-video', 'Templates'],
-  },
-
-  // ============================================================================
-  // ANALYTICS - FREE
-  // ============================================================================
-  {
-    id: 'plausible-free',
-    name: 'Plausible (Self-hosted)',
+    id: 'plausible',
+    name: 'Plausible Analytics',
     category: 'analytics',
     tier: 'free',
-    description: 'Privacy-focused analytics',
+    description: 'Privacy-focused analytics (self-hosted free)',
     url: 'https://plausible.io',
-    freeLimit: 'Free self-hosted',
-    features: ['Privacy-first', 'Simple UI', 'No cookies'],
+    pricing: 'Free self-hosted',
+    features: ['Privacy-focused', 'Lightweight', 'No cookies'],
+    bestFor: ['Privacy-conscious', 'EU compliance'],
   },
   {
     id: 'umami',
     name: 'Umami',
     category: 'analytics',
     tier: 'free',
-    description: 'Open source analytics',
+    description: 'Open source website analytics',
     url: 'https://umami.is',
-    freeLimit: 'Free self-hosted',
-    features: ['Privacy-first', 'Real-time', 'Multiple sites'],
+    pricing: 'Free self-hosted',
+    features: ['Open source', 'Real-time', 'Custom events'],
+    bestFor: ['Developers', 'Self-hosters'],
+  },
+  {
+    id: 'clarity',
+    name: 'Microsoft Clarity',
+    category: 'analytics',
+    tier: 'free',
+    description: 'Free heatmaps and session recordings',
+    url: 'https://clarity.microsoft.com',
+    pricing: 'Free',
+    features: ['Heatmaps', 'Session recordings', 'Insights'],
+    bestFor: ['UX optimization', 'Conversion analysis'],
   },
   {
     id: 'hotjar-free',
     name: 'Hotjar (Free)',
     category: 'analytics',
     tier: 'free',
-    description: 'Heatmaps and recordings',
+    description: 'Heatmaps and surveys with free tier',
     url: 'https://hotjar.com',
-    freeLimit: '35 sessions/day',
+    pricing: 'Free up to 35 sessions/day',
     features: ['Heatmaps', 'Recordings', 'Surveys'],
-  },
-  {
-    id: 'crav-analytics',
-    name: 'CRAV Analytics ⭐',
-    category: 'analytics',
-    tier: 'free',
-    description: 'AI-powered marketing analytics',
-    url: 'https://craudiovizai.com/tools/analytics',
-    isCrav: true,
-    features: ['AI insights', 'Multi-platform', 'Recommendations'],
+    bestFor: ['User research', 'CRO'],
   },
 
-  // ============================================================================
-  // AUTOMATION - FREE
-  // ============================================================================
+  // ========== COMMUNITY - FREE ==========
+  {
+    id: 'discord',
+    name: 'Discord',
+    category: 'community',
+    tier: 'free',
+    description: 'Free community platform with voice/video',
+    url: 'https://discord.com',
+    pricing: 'Free',
+    features: ['Text channels', 'Voice/video', 'Bots', 'Roles'],
+    bestFor: ['Gaming', 'Tech communities', 'Brand communities'],
+  },
+  {
+    id: 'slack-free',
+    name: 'Slack (Free)',
+    category: 'community',
+    tier: 'free',
+    description: 'Team communication with limited history',
+    url: 'https://slack.com',
+    pricing: 'Free with limits',
+    features: ['90-day history', '10 integrations', 'Channels'],
+    bestFor: ['Small teams', 'Startups'],
+  },
+  {
+    id: 'telegram-groups',
+    name: 'Telegram Groups',
+    category: 'community',
+    tier: 'free',
+    description: 'Large group chats up to 200K members',
+    url: 'https://telegram.org',
+    pricing: 'Free',
+    features: ['200K members', 'Bots', 'Channels', 'Polls'],
+    bestFor: ['Crypto', 'International audiences'],
+  },
+  {
+    id: 'reddit',
+    name: 'Reddit',
+    category: 'community',
+    tier: 'free',
+    description: 'Build a subreddit community',
+    url: 'https://reddit.com',
+    pricing: 'Free',
+    features: ['Subreddits', 'Karma system', 'AMAs'],
+    bestFor: ['Niche communities', 'Q&A'],
+  },
+
+  // ========== VIDEO MARKETING - FREE ==========
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    category: 'video',
+    tier: 'free',
+    description: 'The largest video platform - free to upload',
+    url: 'https://youtube.com',
+    pricing: 'Free',
+    features: ['Unlimited uploads', 'Monetization', 'Analytics'],
+    bestFor: ['Video content', 'Tutorials', 'Brand channels'],
+    cravAlternative: {
+      name: 'CRAV Video Creator',
+      url: 'https://craudiovizai.com/tools/video-creator',
+      description: 'AI-powered video creation and editing',
+    },
+  },
+  {
+    id: 'loom-free',
+    name: 'Loom (Free)',
+    category: 'video',
+    tier: 'free',
+    description: 'Quick video recording and sharing',
+    url: 'https://loom.com',
+    pricing: 'Free up to 25 videos',
+    features: ['Screen recording', 'Webcam', 'Easy sharing'],
+    bestFor: ['Async communication', 'Demos'],
+  },
+  {
+    id: 'tiktok',
+    name: 'TikTok',
+    category: 'video',
+    tier: 'free',
+    description: 'Short-form video platform',
+    url: 'https://tiktok.com',
+    pricing: 'Free',
+    features: ['Short videos', 'Trends', 'Creator fund'],
+    bestFor: ['Gen Z audience', 'Viral content'],
+  },
+  {
+    id: 'capcut',
+    name: 'CapCut',
+    category: 'video',
+    tier: 'free',
+    description: 'Free video editing app from TikTok',
+    url: 'https://capcut.com',
+    pricing: 'Free',
+    features: ['Video editing', 'Effects', 'Templates'],
+    bestFor: ['TikTok creators', 'Quick edits'],
+  },
+  {
+    id: 'davinci-resolve',
+    name: 'DaVinci Resolve (Free)',
+    category: 'video',
+    tier: 'free',
+    description: 'Professional video editing - free version',
+    url: 'https://blackmagicdesign.com/products/davinciresolve',
+    pricing: 'Free',
+    features: ['Pro editing', 'Color grading', 'Audio'],
+    bestFor: ['Professional videos', 'Film quality'],
+  },
+
+  // ========== DESIGN TOOLS - FREE ==========
+  {
+    id: 'figma-free',
+    name: 'Figma (Free)',
+    category: 'design',
+    tier: 'free',
+    description: 'Collaborative design tool with free tier',
+    url: 'https://figma.com',
+    pricing: 'Free for 3 projects',
+    features: ['3 projects', 'Collaboration', 'Prototyping'],
+    bestFor: ['UI/UX', 'Collaboration'],
+  },
+  {
+    id: 'canva-free',
+    name: 'Canva (Free)',
+    category: 'design',
+    tier: 'free',
+    description: 'Easy graphic design with templates',
+    url: 'https://canva.com',
+    pricing: 'Free with limits',
+    features: ['Templates', 'Basic editing', 'Social sizes'],
+    bestFor: ['Non-designers', 'Marketing materials'],
+  },
+  {
+    id: 'photopea',
+    name: 'Photopea',
+    category: 'design',
+    tier: 'free',
+    description: 'Free Photoshop alternative in browser',
+    url: 'https://photopea.com',
+    pricing: 'Free',
+    features: ['PSD support', 'Advanced editing', 'No install'],
+    bestFor: ['Photo editing', 'PSD files'],
+  },
+  {
+    id: 'remove-bg',
+    name: 'Remove.bg',
+    category: 'design',
+    tier: 'free',
+    description: 'AI background removal',
+    url: 'https://remove.bg',
+    pricing: 'Free with limits',
+    features: ['AI background removal', 'Quick processing'],
+    bestFor: ['Product photos', 'Portraits'],
+  },
+
+  // ========== LOCAL MARKETING - FREE ==========
+  {
+    id: 'google-business',
+    name: 'Google Business Profile',
+    category: 'local',
+    tier: 'free',
+    description: 'Essential for local SEO - completely free',
+    url: 'https://business.google.com',
+    pricing: 'Free',
+    features: ['Maps listing', 'Reviews', 'Posts', 'Insights'],
+    bestFor: ['Local businesses', 'Retail', 'Services'],
+  },
+  {
+    id: 'yelp',
+    name: 'Yelp Business',
+    category: 'local',
+    tier: 'free',
+    description: 'Claim your free business listing',
+    url: 'https://biz.yelp.com',
+    pricing: 'Free listing',
+    features: ['Business listing', 'Reviews', 'Photos'],
+    bestFor: ['Restaurants', 'Local services'],
+  },
+  {
+    id: 'nextdoor',
+    name: 'Nextdoor Business',
+    category: 'local',
+    tier: 'free',
+    description: 'Neighborhood-based business page',
+    url: 'https://business.nextdoor.com',
+    pricing: 'Free listing',
+    features: ['Local reach', 'Recommendations', 'Posts'],
+    bestFor: ['Neighborhood businesses', 'Home services'],
+  },
+
+  // ========== PR & OUTREACH - FREE ==========
+  {
+    id: 'haro',
+    name: 'HARO (Connectively)',
+    category: 'pr',
+    tier: 'free',
+    description: 'Get quoted in media - journalist queries',
+    url: 'https://connectively.us',
+    pricing: 'Free',
+    features: ['Journalist queries', 'Media opportunities'],
+    bestFor: ['PR', 'Thought leadership', 'Backlinks'],
+  },
+  {
+    id: 'hunter-free',
+    name: 'Hunter.io (Free)',
+    category: 'pr',
+    tier: 'free',
+    description: 'Find email addresses for outreach',
+    url: 'https://hunter.io',
+    pricing: 'Free - 25 searches/mo',
+    features: ['Email finder', 'Verification', 'Domain search'],
+    bestFor: ['Cold outreach', 'Link building'],
+  },
+  {
+    id: 'featured',
+    name: 'Featured.com',
+    category: 'pr',
+    tier: 'free',
+    description: 'Expert quotes for journalists',
+    url: 'https://featured.com',
+    pricing: 'Free',
+    features: ['Expert matching', 'Media coverage'],
+    bestFor: ['Experts', 'Thought leaders'],
+  },
+
+  // ========== AUTOMATION - FREE ==========
   {
     id: 'zapier-free',
     name: 'Zapier (Free)',
     category: 'automation',
     tier: 'free',
-    description: 'App automation',
+    description: 'Connect apps with automation',
     url: 'https://zapier.com',
-    freeLimit: '100 tasks/month',
-    features: ['5 zaps', '2-step workflows', '15 min updates'],
+    pricing: 'Free - 5 zaps, 100 tasks/mo',
+    features: ['5 zaps', '100 tasks', 'Basic integrations'],
+    bestFor: ['Simple automation', 'App connections'],
   },
   {
     id: 'make-free',
     name: 'Make (Free)',
     category: 'automation',
     tier: 'free',
-    description: 'Visual automation',
+    description: 'Visual automation builder',
     url: 'https://make.com',
-    freeLimit: '1,000 ops/month',
-    features: ['Visual builder', 'Complex workflows', 'Webhooks'],
+    pricing: 'Free - 1,000 operations/mo',
+    features: ['Visual builder', '1,000 ops/mo', 'Complex workflows'],
+    bestFor: ['Complex automation', 'Visual learners'],
   },
   {
-    id: 'n8n-free',
+    id: 'n8n',
     name: 'n8n (Self-hosted)',
     category: 'automation',
     tier: 'free',
-    description: 'Open source automation',
+    description: 'Open source workflow automation',
     url: 'https://n8n.io',
-    freeLimit: 'Unlimited self-hosted',
-    features: ['200+ integrations', 'Custom code', 'Workflows'],
+    pricing: 'Free self-hosted',
+    features: ['Open source', 'Unlimited workflows', 'Self-hosted'],
+    bestFor: ['Developers', 'Privacy-conscious'],
   },
   {
     id: 'ifttt-free',
     name: 'IFTTT (Free)',
     category: 'automation',
     tier: 'free',
-    description: 'Simple automation',
+    description: 'Simple if-this-then-that automation',
     url: 'https://ifttt.com',
-    freeLimit: '2 applets',
-    features: ['Simple triggers', 'Mobile-first', 'Smart home'],
+    pricing: 'Free - 2 applets',
+    features: ['2 applets', 'Simple triggers', 'IoT support'],
+    bestFor: ['Simple automation', 'Smart home'],
   },
 
-  // ============================================================================
-  // ADS - BUDGET/PREMIUM (No free tier for ads)
-  // ============================================================================
+  // ========== ADVERTISING - FREE/CREDITS ==========
   {
-    id: 'google-ads',
-    name: 'Google Ads',
+    id: 'google-ads-credits',
+    name: 'Google Ads (Free Credits)',
     category: 'ads',
-    tier: 'budget',
-    description: 'Search and display advertising',
+    tier: 'free',
+    description: 'Often offers $500+ in free ad credits for new accounts',
     url: 'https://ads.google.com',
-    pricing: 'Pay per click',
-    features: ['Search ads', 'Display network', 'YouTube ads'],
+    pricing: 'Free credits available',
+    features: ['Search ads', 'Display ads', 'YouTube ads'],
+    bestFor: ['New advertisers', 'Testing'],
   },
   {
     id: 'meta-ads',
-    name: 'Meta Ads',
+    name: 'Meta Ads (No Minimum)',
     category: 'ads',
     tier: 'budget',
-    description: 'Facebook & Instagram ads',
-    url: 'https://business.facebook.com/ads',
-    pricing: 'Pay per result',
-    features: ['Targeting', 'Retargeting', 'Lookalikes'],
+    description: 'Start with any budget on Facebook/Instagram',
+    url: 'https://business.facebook.com',
+    pricing: 'No minimum spend',
+    features: ['Facebook ads', 'Instagram ads', 'Targeting'],
+    bestFor: ['Social advertising', 'Retargeting'],
   },
   {
-    id: 'tiktok-ads',
-    name: 'TikTok Ads',
+    id: 'reddit-ads',
+    name: 'Reddit Ads',
     category: 'ads',
     tier: 'budget',
-    description: 'TikTok advertising',
-    url: 'https://ads.tiktok.com',
-    pricing: '$50 minimum',
-    features: ['In-feed ads', 'Spark ads', 'Creator marketplace'],
+    description: 'Often offers free ad credits, low minimums',
+    url: 'https://ads.reddit.com',
+    pricing: '$5/day minimum',
+    features: ['Subreddit targeting', 'Interest targeting'],
+    bestFor: ['Niche audiences', 'Tech products'],
   },
+
+  // ========== PREMIUM TOOLS ==========
   {
-    id: 'linkedin-ads',
-    name: 'LinkedIn Ads',
-    category: 'ads',
+    id: 'hubspot',
+    name: 'HubSpot Marketing Hub',
+    category: 'automation',
     tier: 'premium',
-    description: 'B2B advertising',
-    url: 'https://business.linkedin.com/marketing-solutions/ads',
-    pricing: '$10/day minimum',
-    features: ['B2B targeting', 'InMail', 'Lead gen forms'],
-  },
-
-  // ============================================================================
-  // MORE SEO - BUDGET
-  // ============================================================================
-  {
-    id: 'ahrefs-lite',
-    name: 'Ahrefs Lite',
-    category: 'seo',
-    tier: 'budget',
-    description: 'SEO research platform',
-    url: 'https://ahrefs.com',
-    pricing: '$129/month',
-    features: ['Backlink analysis', 'Keyword research', 'Rank tracking'],
+    description: 'All-in-one marketing platform',
+    url: 'https://hubspot.com',
+    pricing: '$800+/mo',
+    features: ['CRM', 'Email', 'Automation', 'Analytics'],
+    bestFor: ['Enterprise', 'B2B'],
   },
   {
-    id: 'semrush',
-    name: 'SEMrush Pro',
-    category: 'seo',
-    tier: 'budget',
-    description: 'All-in-one SEO tool',
-    url: 'https://semrush.com',
-    pricing: '$129/month',
-    features: ['SEO audit', 'Competitor analysis', 'Content marketing'],
-  },
-  {
-    id: 'moz-pro',
-    name: 'Moz Pro',
-    category: 'seo',
-    tier: 'budget',
-    description: 'SEO software suite',
-    url: 'https://moz.com',
-    pricing: '$99/month',
-    features: ['Domain authority', 'Link explorer', 'Rank tracking'],
-  },
-
-  // ============================================================================
-  // MORE EMAIL - BUDGET
-  // ============================================================================
-  {
-    id: 'convertkit',
-    name: 'ConvertKit',
-    category: 'email',
-    tier: 'budget',
-    description: 'Creator email marketing',
-    url: 'https://convertkit.com',
-    pricing: '$15/month for 300 subs',
-    features: ['Visual automations', 'Landing pages', 'Commerce'],
-  },
-  {
-    id: 'activecampaign',
-    name: 'ActiveCampaign',
-    category: 'email',
-    tier: 'budget',
-    description: 'Marketing automation',
-    url: 'https://activecampaign.com',
-    pricing: '$29/month',
-    features: ['CRM', 'Automation', 'SMS'],
-  },
-
-  // ============================================================================
-  // MORE VIDEO - BUDGET
-  // ============================================================================
-  {
-    id: 'vidyard',
-    name: 'Vidyard',
-    category: 'video',
-    tier: 'budget',
-    description: 'Video for business',
-    url: 'https://vidyard.com',
-    pricing: '$19/month',
-    features: ['Video hosting', 'Analytics', 'CTAs'],
-  },
-  {
-    id: 'wistia',
-    name: 'Wistia',
-    category: 'video',
-    tier: 'budget',
-    description: 'Professional video hosting',
-    url: 'https://wistia.com',
-    pricing: '$19/month',
-    features: ['Video SEO', 'Lead capture', 'Channels'],
+    id: 'salesforce-marketing',
+    name: 'Salesforce Marketing Cloud',
+    category: 'automation',
+    tier: 'premium',
+    description: 'Enterprise marketing automation',
+    url: 'https://salesforce.com/marketing-cloud',
+    pricing: 'Custom pricing',
+    features: ['Journey builder', 'Email', 'Mobile', 'Social'],
+    bestFor: ['Enterprise', 'Large scale'],
   },
 ];
 
-// Get platforms by category
-export function getPlatformsByCategory(category: PlatformCategory): Platform[] {
-  return PLATFORMS.filter(p => p.category === category);
+// ============================================================================
+// CRAV TOOL ALTERNATIVES
+// ============================================================================
+
+export const CRAV_TOOLS = [
+  {
+    id: 'crav-social-graphics',
+    name: 'CRAV Social Graphics',
+    category: 'social',
+    url: 'https://craudiovizai.com/tools/social-graphics',
+    description: 'AI-powered social media graphics generator',
+    replaces: ['Canva', 'Adobe Express'],
+    pricing: 'Included in CRAV subscription',
+  },
+  {
+    id: 'crav-email-builder',
+    name: 'CRAV Email Builder',
+    category: 'email',
+    url: 'https://craudiovizai.com/tools/email-builder',
+    description: 'AI email template generator',
+    replaces: ['Mailchimp templates', 'Stripo'],
+    pricing: 'Included in CRAV subscription',
+  },
+  {
+    id: 'crav-video-creator',
+    name: 'CRAV Video Creator',
+    category: 'video',
+    url: 'https://craudiovizai.com/tools/video-creator',
+    description: 'AI video creation and editing',
+    replaces: ['Loom', 'Descript'],
+    pricing: 'Included in CRAV subscription',
+  },
+  {
+    id: 'crav-writing-assistant',
+    name: 'CRAV Writing Assistant',
+    category: 'content',
+    url: 'https://craudiovizai.com/tools/writing-assistant',
+    description: 'AI writing assistant',
+    replaces: ['Grammarly', 'Jasper'],
+    pricing: 'Included in CRAV subscription',
+  },
+  {
+    id: 'crav-seo-analyzer',
+    name: 'CRAV SEO Analyzer',
+    category: 'seo',
+    url: 'https://craudiovizai.com/tools/seo-analyzer',
+    description: 'AI-powered SEO analysis',
+    replaces: ['Ubersuggest', 'Moz'],
+    pricing: 'Included in CRAV subscription',
+  },
+];
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+export function getPlatformsByCategory(category: PlatformCategory): MarketingPlatform[] {
+  return PLATFORMS.filter((p) => p.category === category);
 }
 
-// Get platforms by tier
-export function getPlatformsByTier(tier: PlatformTier): Platform[] {
-  return PLATFORMS.filter(p => p.tier === tier);
+export function getPlatformsByTier(tier: 'free' | 'budget' | 'premium'): MarketingPlatform[] {
+  return PLATFORMS.filter((p) => p.tier === tier);
 }
 
-// Get free platforms first, then budget, then premium
-export function getPlatformsSorted(): Platform[] {
-  const tierOrder: PlatformTier[] = ['free', 'budget', 'premium'];
-  return [...PLATFORMS].sort((a, b) => {
-    return tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier);
-  });
+export function getFreePlatforms(): MarketingPlatform[] {
+  return PLATFORMS.filter((p) => p.tier === 'free');
 }
 
-// Get CRAV platforms only
-export function getCravPlatforms(): Platform[] {
-  return PLATFORMS.filter(p => p.isCrav);
-}
-
-// Search platforms
-export function searchPlatforms(query: string): Platform[] {
-  const lowerQuery = query.toLowerCase();
-  return PLATFORMS.filter(p => 
-    p.name.toLowerCase().includes(lowerQuery) ||
-    p.description.toLowerCase().includes(lowerQuery) ||
-    p.category.toLowerCase().includes(lowerQuery)
+export function searchPlatforms(query: string): MarketingPlatform[] {
+  const q = query.toLowerCase();
+  return PLATFORMS.filter(
+    (p) =>
+      p.name.toLowerCase().includes(q) ||
+      p.description.toLowerCase().includes(q) ||
+      p.features.some((f) => f.toLowerCase().includes(q)) ||
+      p.bestFor.some((b) => b.toLowerCase().includes(q))
   );
 }
 
-// Category display info
-export const CATEGORY_INFO: Record<PlatformCategory, { label: string; icon: string }> = {
-  social: { label: 'Social Media', icon: 'share-2' },
-  email: { label: 'Email Marketing', icon: 'mail' },
-  seo: { label: 'SEO & Search', icon: 'search' },
-  content: { label: 'Content & Blogs', icon: 'file-text' },
-  local: { label: 'Local Marketing', icon: 'map-pin' },
-  community: { label: 'Community', icon: 'users' },
-  video: { label: 'Video', icon: 'video' },
-  analytics: { label: 'Analytics', icon: 'bar-chart-2' },
-  ads: { label: 'Paid Ads', icon: 'dollar-sign' },
-  automation: { label: 'Automation', icon: 'zap' },
-};
+export function getPlatformsWithCravAlternatives(): MarketingPlatform[] {
+  return PLATFORMS.filter((p) => p.cravAlternative);
+}
+
+export function getCravAlternativeFor(platformId: string): MarketingPlatform['cravAlternative'] | undefined {
+  const platform = PLATFORMS.find((p) => p.id === platformId);
+  return platform?.cravAlternative;
+}

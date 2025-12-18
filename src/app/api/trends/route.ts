@@ -228,7 +228,7 @@ function generateInsights(
   }
 
   // Analyze Reddit engagement
-  if (redditData?.topPosts?.length > 0) {
+  if (redditData?.topPosts && redditData.topPosts.length > 0) {
     const avgUpvotes = redditData.topPosts.reduce((sum: number, p: any) => sum + p.score, 0) / redditData.topPosts.length;
     if (avgUpvotes > 50) {
       insights.push('Strong community engagement on Reddit');

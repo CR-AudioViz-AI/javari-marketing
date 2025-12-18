@@ -1,260 +1,272 @@
 // ============================================================================
-// CR AUDIOVIZ AI - TRENDS API
-// GET /api/trends - Get market trends from multiple FREE sources
+// CR AUDIOVIZ AI - MARKET TRENDS API
+// GET /api/trends - Get market research from Reddit, HN, and News
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  getHackerNewsTop, 
-  searchHackerNews, 
-  getRedditTrends, 
-  searchRedditSubreddits,
-  getIndustryNews,
-  getNewsFromGNews,
-  getMarketResearch,
+import {
+  searchReddit,
+  searchHackerNews,
+  searchNews,
+  getHackerNewsTopStories,
+  getNewsHeadlines,
+  conductMarketResearch,
+  type RedditPost,
+  type HackerNewsStory,
+  type NewsArticle,
 } from '@/lib/free-apis';
 
 export async function GET(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
-    const industry = searchParams.get('industry');
-    const source = searchParams.get('source'); // 'hn', 'reddit', 'news', 'all'
-    const limit = parseInt(searchParams.get('limit') || '10');
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.get('q');
+  const source = searchParams.get('source'); // reddit, hackernews, news, all
+  const category = searchParams.get('category');
+  const limit = parseInt(searchParams.get('limit') || '10');
 
-    // If no specific request, return general tech trends
-    if (!industry && !source) {
-      const hnTop = await getHackerNewsTop(5);
-      
+  // If no query, return trending topics
+  if (!query) {
+    try {
+      const [hnTop, newsHeadlines] = await Promise.all([
+        getHackerNewsTopStories(10),
+        getNewsHeadlines(category as 'business' | 'technology' | undefined),
+      ]);
+
       return NextResponse.json({
         success: true,
-        trends: {
-          hackerNews: hnTop,
+        trending: {
+          hackerNews: hnTop.map((s) => ({
+            title: s.title,
+            score: s.score,
+            url: s.url || `https://news.ycombinator.com/item?id=${s.id}`,
+            comments: s.descendants,
+          })),
+          news: newsHeadlines.slice(0, 10).map((a) => ({
+            title: a.title,
+            source: a.source,
+            url: a.url,
+            publishedAt: a.publishedAt,
+          })),
         },
-        message: 'Use ?industry=<industry> for industry-specific trends',
+        meta: {
+          category,
+          timestamp: new Date().toISOString(),
+        },
       });
+    } catch (error) {
+      console.error('Trending fetch error:', error);
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch trending topics' },
+        { status: 500 }
+      );
     }
+  }
 
-    // Fetch from specific source
-    if (source && source !== 'all') {
-      let data;
-      
+  // Search specific source
+  if (source && source !== 'all') {
+    try {
+      let results: RedditPost[] | HackerNewsStory[] | NewsArticle[] = [];
+
       switch (source) {
-        case 'hn':
-          data = industry 
-            ? await searchHackerNews(industry, limit)
-            : await getHackerNewsTop(limit);
-          return NextResponse.json({
-            success: true,
-            source: 'Hacker News',
-            data,
-            count: data.length,
-          });
-          
         case 'reddit':
-          if (industry) {
-            // Search for relevant subreddits
-            const subreddits = await searchRedditSubreddits(industry);
-            const redditData = subreddits.length > 0 
-              ? await getRedditTrends(subreddits[0], limit)
-              : null;
-            return NextResponse.json({
-              success: true,
-              source: 'Reddit',
-              subreddits,
-              data: redditData,
-            });
-          }
-          return NextResponse.json({
-            success: false,
-            error: 'Industry or subreddit required for Reddit trends',
-          });
-          
+          results = await searchReddit(query, { limit, sort: 'top', time: 'month' });
+          break;
+        case 'hackernews':
+          results = await searchHackerNews(query, limit);
+          break;
         case 'news':
-          if (!industry) {
-            return NextResponse.json({
-              success: false,
-              error: 'Industry required for news trends',
-            });
-          }
-          // Try NewsAPI first, fallback to GNews
-          let newsData = await getIndustryNews(industry, limit);
-          if (newsData.length === 0) {
-            newsData = await getNewsFromGNews(industry, limit);
-          }
-          return NextResponse.json({
-            success: true,
-            source: 'News',
-            data: newsData,
-            count: newsData.length,
-          });
-          
+          results = await searchNews(query, { sortBy: 'relevancy' });
+          break;
         default:
-          return NextResponse.json({
-            success: false,
-            error: 'Invalid source. Use: hn, reddit, news, or all',
-          });
+          return NextResponse.json(
+            { success: false, error: 'Invalid source. Use: reddit, hackernews, news, or all' },
+            { status: 400 }
+          );
       }
-    }
 
-    // Full market research for industry
-    if (industry) {
-      const research = await getMarketResearch(industry);
-      
       return NextResponse.json({
         success: true,
-        industry,
-        research,
-        sources: ['Hacker News', 'Reddit', 'News APIs'],
-        disclaimer: 'Trends are aggregated from public sources and may not be comprehensive.',
+        source,
+        results,
+        count: results.length,
+        meta: {
+          query,
+          limit,
+          timestamp: new Date().toISOString(),
+        },
       });
+    } catch (error) {
+      console.error(`${source} search error:`, error);
+      return NextResponse.json(
+        { success: false, error: `Failed to search ${source}` },
+        { status: 500 }
+      );
     }
+  }
+
+  // Comprehensive market research (all sources)
+  try {
+    const research = await conductMarketResearch(query);
 
     return NextResponse.json({
-      success: false,
-      error: 'Please specify industry or source parameter',
+      success: true,
+      research: {
+        query: research.query,
+        reddit: {
+          posts: research.reddit.posts.slice(0, limit),
+          topSubreddits: research.reddit.topSubreddits,
+          avgEngagement: research.reddit.averageEngagement,
+        },
+        hackerNews: {
+          stories: research.hackerNews.stories.slice(0, limit),
+          avgScore: research.hackerNews.averageScore,
+        },
+        news: {
+          articles: research.news.articles.slice(0, limit),
+          topSources: research.news.topSources,
+        },
+        insights: research.insights,
+      },
+      meta: {
+        query,
+        sourcesQueried: ['reddit', 'hackernews', 'news'],
+        timestamp: research.timestamp.toISOString(),
+      },
     });
   } catch (error) {
-    console.error('[Trends API] Error:', error);
+    console.error('Market research error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch trends' },
+      { success: false, error: 'Failed to conduct market research' },
       { status: 500 }
     );
   }
 }
 
-// POST /api/trends - Save trend report
+// POST endpoint for detailed research request
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { industry, userId, saveReport } = body;
+    const { query, competitors, industry, timeframe } = body;
 
-    if (!industry) {
+    if (!query) {
       return NextResponse.json(
-        { error: 'industry is required' },
+        { success: false, error: 'Query is required' },
         { status: 400 }
       );
     }
 
-    // Generate comprehensive trend report
-    const [hnData, newsData, subreddits] = await Promise.all([
-      searchHackerNews(industry, 10),
-      getIndustryNews(industry, 10),
-      searchRedditSubreddits(industry),
-    ]);
+    // Main query research
+    const mainResearch = await conductMarketResearch(query);
 
-    // Get Reddit data from first relevant subreddit
-    let redditData = null;
-    if (subreddits.length > 0) {
-      redditData = await getRedditTrends(subreddits[0], 10);
+    // Competitor research (if provided)
+    let competitorResearch: Record<string, Awaited<ReturnType<typeof conductMarketResearch>>> = {};
+    if (competitors && competitors.length > 0) {
+      const competitorResults = await Promise.all(
+        competitors.slice(0, 3).map(async (comp: string) => ({
+          name: comp,
+          research: await conductMarketResearch(comp),
+        }))
+      );
+      
+      competitorResearch = Object.fromEntries(
+        competitorResults.map((r) => [r.name, r.research])
+      );
     }
 
-    const report = {
-      id: `trend_${Date.now()}`,
-      industry,
-      generatedAt: new Date().toISOString(),
-      sections: [
-        {
-          title: 'Tech Community Buzz',
-          source: 'Hacker News',
-          items: hnData.slice(0, 5).map(h => ({
-            title: h.title,
-            url: h.hnUrl,
-            engagement: `${h.score} points, ${h.descendants} comments`,
-          })),
-        },
-        {
-          title: 'Latest News',
-          source: 'News APIs',
-          items: newsData.slice(0, 5).map(n => ({
-            title: n.title,
-            url: n.url,
-            source: n.source,
-          })),
-        },
-        {
-          title: 'Community Discussions',
-          source: 'Reddit',
-          subreddits,
-          items: redditData?.topPosts?.slice(0, 5).map(p => ({
-            title: p.title,
-            url: p.url,
-            engagement: `${p.score} upvotes, ${p.numComments} comments`,
-          })) || [],
-        },
-      ],
-      insights: generateInsights(hnData, newsData, redditData),
-    };
+    // Generate comparative insights
+    const insights: string[] = [...mainResearch.insights];
 
-    // Log report generation
-    console.log('[Trends API] Report generated:', {
-      industry,
-      userId: userId || 'anonymous',
-      timestamp: report.generatedAt,
-    });
+    if (Object.keys(competitorResearch).length > 0) {
+      const yourEngagement = mainResearch.reddit.averageEngagement;
+      for (const [comp, research] of Object.entries(competitorResearch)) {
+        const compEngagement = research.reddit.averageEngagement;
+        if (compEngagement > yourEngagement) {
+          insights.push(`${comp} has ${Math.round((compEngagement / yourEngagement - 1) * 100)}% more Reddit engagement than your topic`);
+        } else {
+          insights.push(`Your topic has ${Math.round((yourEngagement / compEngagement - 1) * 100)}% more Reddit engagement than ${comp}`);
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      report,
-      saved: saveReport ? true : false,
+      mainTopic: {
+        query,
+        ...mainResearch,
+      },
+      competitors: competitorResearch,
+      comparativeInsights: insights,
+      recommendations: generateRecommendations(mainResearch, industry),
+      meta: {
+        query,
+        competitorsAnalyzed: Object.keys(competitorResearch).length,
+        timeframe: timeframe || '30 days',
+        timestamp: new Date().toISOString(),
+      },
     });
   } catch (error) {
-    console.error('[Trends API] Error:', error);
+    console.error('Detailed research error:', error);
     return NextResponse.json(
-      { error: 'Failed to generate trend report' },
+      { success: false, error: 'Failed to conduct detailed research' },
       { status: 500 }
     );
   }
 }
 
-// Generate insights from trend data
-function generateInsights(
-  hnData: any[],
-  newsData: any[],
-  redditData: any
+// Generate actionable recommendations
+function generateRecommendations(
+  research: Awaited<ReturnType<typeof conductMarketResearch>>,
+  industry?: string
 ): string[] {
-  const insights: string[] = [];
+  const recommendations: string[] = [];
 
-  // Analyze HN engagement
-  if (hnData.length > 0) {
-    const avgScore = hnData.reduce((sum, h) => sum + (h.score || 0), 0) / hnData.length;
-    if (avgScore > 100) {
-      insights.push('High engagement on tech community discussions');
-    }
+  // Reddit recommendations
+  if (research.reddit.posts.length > 5) {
+    recommendations.push(
+      `High Reddit activity detected. Consider posting in: ${research.reddit.topSubreddits.slice(0, 3).map((s) => `r/${s}`).join(', ')}`
+    );
   }
 
-  // Analyze news volume
-  if (newsData.length >= 5) {
-    insights.push('Active news coverage indicates growing market interest');
+  if (research.reddit.averageEngagement > 100) {
+    recommendations.push(
+      'Strong Reddit engagement - community marketing should be a priority'
+    );
   }
 
-  // Analyze Reddit engagement
-  if (redditData?.topPosts && redditData.topPosts.length > 0) {
-    const avgUpvotes = redditData.topPosts.reduce((sum: number, p: any) => sum + p.score, 0) / redditData.topPosts.length;
-    if (avgUpvotes > 50) {
-      insights.push('Strong community engagement on Reddit');
-    }
+  // Hacker News recommendations
+  if (research.hackerNews.averageScore > 50) {
+    recommendations.push(
+      'Hacker News interest is high - consider a "Show HN" launch'
+    );
   }
 
-  // Common keywords analysis
-  const allTitles = [
-    ...hnData.map(h => h.title),
-    ...newsData.map(n => n.title),
-    ...(redditData?.topPosts?.map((p: any) => p.title) || []),
-  ].join(' ').toLowerCase();
-
-  if (allTitles.includes('ai') || allTitles.includes('artificial intelligence')) {
-    insights.push('AI is a trending topic in this industry');
-  }
-  if (allTitles.includes('startup') || allTitles.includes('funding')) {
-    insights.push('Active startup and investment activity');
-  }
-  if (allTitles.includes('growth') || allTitles.includes('scale')) {
-    insights.push('Growth and scaling are key themes');
+  // News recommendations
+  if (research.news.articles.length > 5) {
+    recommendations.push(
+      `Active press coverage from: ${research.news.topSources.slice(0, 3).join(', ')} - PR outreach recommended`
+    );
   }
 
-  if (insights.length === 0) {
-    insights.push('Review the trend data above for industry-specific insights');
+  // Industry-specific recommendations
+  if (industry === 'saas' || industry === 'software') {
+    recommendations.push(
+      'For SaaS: Focus on Product Hunt, Hacker News, and developer communities'
+    );
   }
 
-  return insights;
+  if (industry === 'ecommerce') {
+    recommendations.push(
+      'For E-commerce: Focus on Reddit shopping communities and influencer partnerships'
+    );
+  }
+
+  // Default recommendations
+  if (recommendations.length < 3) {
+    recommendations.push(
+      'Build presence on Reddit before promotional posts',
+      'Create valuable content that solves user problems',
+      'Engage authentically - avoid hard selling'
+    );
+  }
+
+  return recommendations;
 }

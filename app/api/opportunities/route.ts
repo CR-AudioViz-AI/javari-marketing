@@ -1,123 +1,284 @@
 // ============================================================================
 // CR AUDIOVIZ AI - OPPORTUNITY MONITOR API
-// Scans Reddit, HN, Twitter for marketing opportunities
+// Scans Reddit, HN for marketing opportunities
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  findRedditOpportunities, 
-  findHNOpportunities, 
-  searchTwitter,
-  comprehensiveMarketResearch,
-  getNicheRecommendations 
-} from '@/lib/free-apis-comprehensive';
-import { NICHE_CONFIGS } from '@/lib/campaign-engine';
 
 // ============================================================================
-// GET - Find opportunities based on keywords/niche
+// TYPES
+// ============================================================================
+
+interface RedditPost {
+  id: string;
+  title: string;
+  selftext: string;
+  author: string;
+  subreddit: string;
+  score: number;
+  numComments: number;
+  permalink: string;
+  createdUtc: number;
+  isQuestion: boolean;
+}
+
+interface MarketOpportunity {
+  id: string;
+  source: string;
+  title: string;
+  content: string;
+  url: string;
+  relevanceScore: number;
+  nicheMatch: string[];
+  suggestedResponse?: string;
+  engagement: {
+    score?: number;
+    comments?: number;
+  };
+  createdAt: string;
+}
+
+// ============================================================================
+// REDDIT API (FREE)
+// ============================================================================
+
+async function searchReddit(query: string, subreddit?: string, limit: number = 25): Promise<RedditPost[]> {
+  try {
+    const baseUrl = subreddit 
+      ? `https://www.reddit.com/r/${subreddit}/search.json`
+      : `https://www.reddit.com/search.json`;
+    
+    const params = new URLSearchParams({
+      q: query,
+      sort: 'new',
+      t: 'week',
+      limit: limit.toString(),
+      restrict_sr: subreddit ? 'true' : 'false',
+    });
+
+    const response = await fetch(`${baseUrl}?${params}`, {
+      headers: { 'User-Agent': 'CRAVMarketingBot/1.0' },
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    
+    return data.data.children.map((child: any) => ({
+      id: child.data.id,
+      title: child.data.title,
+      selftext: child.data.selftext || '',
+      author: child.data.author,
+      subreddit: child.data.subreddit,
+      score: child.data.score,
+      numComments: child.data.num_comments,
+      permalink: `https://reddit.com${child.data.permalink}`,
+      createdUtc: child.data.created_utc,
+      isQuestion: child.data.title.includes('?') || 
+                  child.data.title.toLowerCase().startsWith('what') ||
+                  child.data.title.toLowerCase().startsWith('how') ||
+                  child.data.title.toLowerCase().startsWith('anyone'),
+    }));
+  } catch (error) {
+    console.error('Reddit search error:', error);
+    return [];
+  }
+}
+
+// ============================================================================
+// HACKER NEWS API (FREE)
+// ============================================================================
+
+async function searchHN(query: string): Promise<any[]> {
+  try {
+    const params = new URLSearchParams({
+      query,
+      tags: 'story',
+      hitsPerPage: '20',
+    });
+
+    const response = await fetch(`https://hn.algolia.com/api/v1/search?${params}`);
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    
+    return data.hits.map((hit: any) => ({
+      id: hit.objectID,
+      title: hit.title,
+      url: hit.url,
+      author: hit.author,
+      points: hit.points,
+      numComments: hit.num_comments,
+      createdAt: hit.created_at,
+      storyUrl: `https://news.ycombinator.com/item?id=${hit.objectID}`,
+    }));
+  } catch (error) {
+    console.error('HN search error:', error);
+    return [];
+  }
+}
+
+// ============================================================================
+// NICHE CONFIGS
+// ============================================================================
+
+const NICHE_KEYWORDS: Record<string, { keywords: string[], subreddits: string[] }> = {
+  'crochet': {
+    keywords: ['crochet', 'yarn', 'pattern', 'amigurumi'],
+    subreddits: ['crochet', 'Brochet', 'crochetpatterns'],
+  },
+  'scrapbooking': {
+    keywords: ['scrapbook', 'paper craft', 'memory keeping'],
+    subreddits: ['scrapbooking', 'crafts', 'papercrafts'],
+  },
+  'whiskey-bourbon': {
+    keywords: ['whiskey', 'bourbon', 'scotch', 'collection'],
+    subreddits: ['bourbon', 'whiskey', 'Scotch'],
+  },
+  'sports-cards': {
+    keywords: ['trading cards', 'baseball cards', 'grading'],
+    subreddits: ['baseballcards', 'basketballcards', 'footballcards'],
+  },
+  'saas': {
+    keywords: ['saas', 'software', 'startup', 'app'],
+    subreddits: ['SaaS', 'startups', 'Entrepreneur'],
+  },
+};
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+function calculateRelevance(post: RedditPost, keywords: string[]): number {
+  let score = 0;
+  const text = `${post.title} ${post.selftext}`.toLowerCase();
+  
+  for (const keyword of keywords) {
+    if (text.includes(keyword.toLowerCase())) score += 0.2;
+  }
+  
+  if (post.isQuestion) score += 0.3;
+  if (post.numComments < 10) score += 0.2;
+  if (post.numComments < 5) score += 0.1;
+  
+  const hoursSincePost = (Date.now() / 1000 - post.createdUtc) / 3600;
+  if (hoursSincePost < 24) score += 0.2;
+  if (hoursSincePost < 6) score += 0.1;
+  
+  return Math.min(score, 1);
+}
+
+function generateSuggestedResponse(isQuestion: boolean): string {
+  const templates = isQuestion ? [
+    `Great question! I've been researching this too. What specific features are most important to you?`,
+    `I was just dealing with this! Here's what I've learned... Have you tried breaking it down into smaller steps?`,
+    `This is something a lot of people ask about. The key things to consider are ease of use and your specific needs.`,
+  ] : [
+    `Interesting perspective! I've seen similar patterns in my experience. What led you to this conclusion?`,
+    `This resonates with me. Would love to hear more about your approach.`,
+  ];
+  
+  return templates[Math.floor(Math.random() * templates.length)];
+}
+
+// ============================================================================
+// GET - Find opportunities
 // ============================================================================
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const nicheSlug = searchParams.get('niche');
+    const niche = searchParams.get('niche');
     const keywords = searchParams.get('keywords')?.split(',') || [];
     const sources = searchParams.get('sources')?.split(',') || ['reddit', 'hackernews'];
     const limit = parseInt(searchParams.get('limit') || '20');
 
     // Return API info if no params
-    if (!nicheSlug && keywords.length === 0) {
+    if (!niche && keywords.length === 0) {
       return NextResponse.json({
         service: 'Opportunity Monitor API',
-        description: 'Find marketing opportunities across Reddit, Hacker News, and Twitter',
+        description: 'Find marketing opportunities across Reddit and Hacker News',
+        status: 'operational',
         endpoints: {
           'GET /api/opportunities?niche=crochet': 'Find opportunities for a niche',
           'GET /api/opportunities?keywords=tool,app,help': 'Search by keywords',
-          'GET /api/opportunities?niche=saas&sources=reddit,hackernews': 'Filter sources',
-          'POST /api/opportunities': 'Comprehensive market research',
         },
-        availableNiches: Object.keys(NICHE_CONFIGS),
-        availableSources: ['reddit', 'hackernews', 'twitter'],
+        availableNiches: Object.keys(NICHE_KEYWORDS),
+        availableSources: ['reddit', 'hackernews'],
       });
     }
 
     // Get niche config
-    let searchKeywords = keywords;
-    let subreddits: string[] = [];
-    
-    if (nicheSlug && NICHE_CONFIGS[nicheSlug]) {
-      const config = NICHE_CONFIGS[nicheSlug];
-      searchKeywords = [...new Set([...keywords, ...config.keywords.slice(0, 5)])];
-      subreddits = config.recommendedSubreddits;
-    }
+    const nicheConfig = niche ? NICHE_KEYWORDS[niche] : null;
+    const searchKeywords = nicheConfig 
+      ? [...new Set([...keywords, ...nicheConfig.keywords])]
+      : keywords;
+    const subreddits = nicheConfig?.subreddits || ['Entrepreneur', 'smallbusiness'];
 
-    const opportunities: any[] = [];
+    const opportunities: MarketOpportunity[] = [];
     const errors: string[] = [];
 
     // Search Reddit
     if (sources.includes('reddit') && searchKeywords.length > 0) {
-      const redditResult = await findRedditOpportunities(
-        searchKeywords.slice(0, 5),
-        subreddits.length > 0 ? subreddits : ['Entrepreneur', 'smallbusiness', 'startups']
-      );
-      
-      if (redditResult.success && redditResult.data) {
-        opportunities.push(...redditResult.data);
-      } else if (redditResult.error) {
-        errors.push(`Reddit: ${redditResult.error}`);
+      for (const subreddit of subreddits.slice(0, 3)) {
+        for (const keyword of searchKeywords.slice(0, 2)) {
+          const posts = await searchReddit(keyword, subreddit, 10);
+          
+          for (const post of posts) {
+            if (post.isQuestion || post.numComments < 20) {
+              opportunities.push({
+                id: `reddit_${post.id}`,
+                source: 'reddit',
+                title: post.title,
+                content: post.selftext.slice(0, 300),
+                url: post.permalink,
+                relevanceScore: calculateRelevance(post, searchKeywords),
+                nicheMatch: searchKeywords.filter(k => 
+                  post.title.toLowerCase().includes(k.toLowerCase())
+                ),
+                suggestedResponse: generateSuggestedResponse(post.isQuestion),
+                engagement: {
+                  score: post.score,
+                  comments: post.numComments,
+                },
+                createdAt: new Date(post.createdUtc * 1000).toISOString(),
+              });
+            }
+          }
+          
+          // Rate limit protection
+          await new Promise(r => setTimeout(r, 500));
+        }
       }
     }
 
     // Search Hacker News
     if (sources.includes('hackernews') && searchKeywords.length > 0) {
-      const hnResult = await findHNOpportunities(searchKeywords.slice(0, 5));
-      
-      if (hnResult.success && hnResult.data) {
-        opportunities.push(...hnResult.data);
-      } else if (hnResult.error) {
-        errors.push(`HN: ${hnResult.error}`);
+      for (const keyword of searchKeywords.slice(0, 3)) {
+        const stories = await searchHN(keyword);
+        
+        for (const story of stories.slice(0, 5)) {
+          opportunities.push({
+            id: `hn_${story.id}`,
+            source: 'hackernews',
+            title: story.title,
+            content: '',
+            url: story.storyUrl,
+            relevanceScore: story.points > 50 ? 0.8 : 0.5,
+            nicheMatch: [keyword],
+            engagement: {
+              score: story.points,
+              comments: story.numComments,
+            },
+            createdAt: story.createdAt,
+          });
+        }
       }
     }
 
-    // Search Twitter (if configured)
-    if (sources.includes('twitter') && searchKeywords.length > 0) {
-      const twitterResult = await searchTwitter(searchKeywords.join(' OR '));
-      
-      if (twitterResult.success && twitterResult.data) {
-        const twitterOpps = twitterResult.data.map((tweet: any) => ({
-          id: `twitter_${tweet.id}`,
-          source: 'twitter',
-          title: tweet.text.slice(0, 100),
-          content: tweet.text,
-          url: tweet.url,
-          relevanceScore: 0.5,
-          nicheMatch: searchKeywords.filter(k => 
-            tweet.text.toLowerCase().includes(k.toLowerCase())
-          ),
-          engagement: {
-            likes: tweet.metrics?.like_count || 0,
-            comments: tweet.metrics?.reply_count || 0,
-          },
-          createdAt: tweet.createdAt,
-        }));
-        opportunities.push(...twitterOpps);
-      } else if (twitterResult.error) {
-        errors.push(`Twitter: ${twitterResult.error}`);
-      }
-    }
-
-    // Sort by relevance and limit
+    // Sort and limit
     opportunities.sort((a, b) => b.relevanceScore - a.relevanceScore);
     const limitedOpportunities = opportunities.slice(0, limit);
-
-    // Generate suggested responses for top opportunities
-    const withResponses = limitedOpportunities.slice(0, 5).map(opp => ({
-      ...opp,
-      suggestedResponse: generateSuggestedResponse(opp, nicheSlug),
-    }));
-
-    // Replace top 5 with response-enhanced versions
-    limitedOpportunities.splice(0, 5, ...withResponses);
 
     return NextResponse.json({
       success: true,
@@ -126,10 +287,16 @@ export async function GET(request: NextRequest) {
         meta: {
           totalFound: opportunities.length,
           returned: limitedOpportunities.length,
-          sources: sources,
+          sources,
           keywords: searchKeywords,
-          niche: nicheSlug || null,
+          niche: niche || null,
         },
+        actionItems: [
+          `🔥 ${limitedOpportunities.filter(o => o.relevanceScore > 0.7).length} high-relevance opportunities`,
+          `❓ ${limitedOpportunities.filter(o => o.title.includes('?')).length} questions to answer`,
+          '📝 Review suggested responses and personalize before posting',
+          '⏰ Best response time: within 2-6 hours of original post',
+        ],
         errors: errors.length > 0 ? errors : undefined,
       },
     });
@@ -143,21 +310,13 @@ export async function GET(request: NextRequest) {
 }
 
 // ============================================================================
-// POST - Comprehensive market research
+// POST - Comprehensive research
 // ============================================================================
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      keywords,
-      niche,
-      includeNews = true,
-      includeReddit = true,
-      includeHN = true,
-      includeTwitter = false,
-      subreddits,
-    } = body;
+    const { keywords, niche } = body;
 
     if (!keywords || keywords.length === 0) {
       return NextResponse.json(
@@ -166,133 +325,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get niche-specific subreddits
-    let targetSubreddits = subreddits || [];
-    if (niche && NICHE_CONFIGS[niche]) {
-      targetSubreddits = [...targetSubreddits, ...NICHE_CONFIGS[niche].recommendedSubreddits];
-    }
+    // Redirect to GET with params
+    const url = new URL(request.url);
+    url.searchParams.set('keywords', keywords.join(','));
+    if (niche) url.searchParams.set('niche', niche);
 
-    const result = await comprehensiveMarketResearch(keywords, {
-      includeNews,
-      includeReddit,
-      includeHN,
-      includeTwitter,
-      subreddits: targetSubreddits,
-    });
-
-    if (!result.success) {
-      return NextResponse.json(
-        { success: false, error: result.error },
-        { status: 500 }
-      );
-    }
-
-    // Add niche recommendations
-    const recommendations = niche 
-      ? getNicheRecommendations(niche, keywords.join(' '))
-      : null;
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        ...result.data,
-        recommendations,
-        actionItems: generateActionItems(result.data?.opportunities || [], niche),
-      },
-    });
+    return NextResponse.redirect(url);
   } catch (error) {
-    console.error('Market research error:', error);
+    console.error('Research error:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
     );
   }
-}
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-function generateSuggestedResponse(opportunity: any, niche?: string | null): string {
-  const templates = {
-    question: [
-      `Great question! I've been researching this too. For {{topic}}, I've found that {{approach}} works well. What specific features are most important to you?`,
-      `I was just dealing with this! Here's what I've learned: {{insight}}. Have you tried {{suggestion}}?`,
-      `This is something a lot of people ask about. The key things to consider are {{factors}}. What's your current setup like?`,
-    ],
-    discussion: [
-      `Interesting perspective! I've seen {{observation}} in my experience. What led you to this conclusion?`,
-      `This resonates with me. I've been exploring {{related_topic}} and found some overlap. Would love to hear more about your approach.`,
-    ],
-    recommendation: [
-      `I've been testing a few options for this. {{tool_mention}} has been interesting - {{specific_feature}}. What's your budget/requirements?`,
-      `Have you looked into {{alternative}}? I've heard good things, though I'm also comparing other options.`,
-    ],
-  };
-
-  // Determine post type
-  const isQuestion = opportunity.title?.includes('?') || 
-                    opportunity.content?.toLowerCase().includes('anyone') ||
-                    opportunity.content?.toLowerCase().includes('recommend');
-
-  const templateList = isQuestion ? templates.question : templates.discussion;
-  const template = templateList[Math.floor(Math.random() * templateList.length)];
-
-  // Basic placeholder replacement
-  let response = template
-    .replace('{{topic}}', 'this')
-    .replace('{{approach}}', 'starting simple and iterating')
-    .replace('{{insight}}', 'the basics matter most')
-    .replace('{{suggestion}}', 'breaking it down into smaller steps')
-    .replace('{{factors}}', 'ease of use, pricing, and support')
-    .replace('{{observation}}', 'similar patterns')
-    .replace('{{related_topic}}', 'related approaches')
-    .replace('{{tool_mention}}', 'a few different tools')
-    .replace('{{specific_feature}}', 'the simplicity is nice')
-    .replace('{{alternative}}', 'some alternatives');
-
-  return response;
-}
-
-function generateActionItems(opportunities: any[], niche?: string | null): string[] {
-  const items: string[] = [];
-
-  // High-relevance opportunities
-  const highRelevance = opportunities.filter(o => o.relevanceScore > 0.7);
-  if (highRelevance.length > 0) {
-    items.push(`🔥 ${highRelevance.length} high-relevance opportunities found - respond within 24 hours`);
-  }
-
-  // Question opportunities
-  const questions = opportunities.filter(o => 
-    o.title?.includes('?') || o.content?.toLowerCase().includes('recommend')
-  );
-  if (questions.length > 0) {
-    items.push(`❓ ${questions.length} questions you can answer - great for establishing expertise`);
-  }
-
-  // Low competition
-  const lowComp = opportunities.filter(o => 
-    (o.engagement?.comments || 0) < 10
-  );
-  if (lowComp.length > 0) {
-    items.push(`🎯 ${lowComp.length} low-competition posts - early engagement = visibility`);
-  }
-
-  // Platform-specific
-  const redditOpps = opportunities.filter(o => o.source === 'reddit');
-  const hnOpps = opportunities.filter(o => o.source === 'hackernews');
-  
-  if (redditOpps.length > 0) {
-    items.push(`📱 ${redditOpps.length} Reddit opportunities - remember: helpful first, promotional never`);
-  }
-  if (hnOpps.length > 0) {
-    items.push(`💻 ${hnOpps.length} Hacker News opportunities - technical depth appreciated`);
-  }
-
-  // General advice
-  items.push('📝 Review suggested responses and personalize before posting');
-  items.push('⏰ Best response time: within 2-6 hours of original post');
-
-  return items;
 }

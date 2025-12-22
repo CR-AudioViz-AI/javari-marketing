@@ -1,392 +1,314 @@
 // ============================================================================
 // CR AUDIOVIZ AI - MARKETING COMMAND CENTER DASHBOARD
-// Main landing page with strategy generator, platform finder, and launch tools
+// Complete dashboard with all 9 API integrations
+// Updated: Sunday, December 22, 2025 | 12:15 AM EST
 // ============================================================================
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Zap, Target, Rocket, TrendingUp, Users, DollarSign, 
   MapPin, Calendar, ArrowRight, Check, Star, Sparkles,
-  BarChart3, Globe, Mail, Share2, Search, Play
+  BarChart3, Globe, Mail, Share2, Search, Play, RefreshCw,
+  MessageSquare, Eye, Clock, Filter, ChevronDown, ExternalLink,
+  Megaphone, UserPlus, Hash, AlertCircle, CheckCircle2, Loader2,
+  Building, PieChart, Activity, Lightbulb, Send, Copy, Heart
 } from 'lucide-react';
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+interface Campaign {
+  id: string;
+  name: string;
+  status: 'draft' | 'active' | 'paused' | 'completed';
+  niche: string;
+  platforms: string[];
+  posts: number;
+  engagement: number;
+  createdAt: string;
+}
+
+interface Opportunity {
+  id: string;
+  source: string;
+  title: string;
+  url: string;
+  score: number;
+  relevance: string;
+  timestamp: string;
+  suggestedResponse?: string;
+}
+
+interface Group {
+  name: string;
+  platform: string;
+  url?: string;
+  members?: string;
+  activity?: string;
+  relevance: string;
+  strategy: string;
+}
+
+interface TrendData {
+  keyword: string;
+  volume: number;
+  trend: 'rising' | 'stable' | 'declining';
+  relatedTerms: string[];
+}
 
 // ============================================================================
 // MAIN DASHBOARD COMPONENT
 // ============================================================================
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'strategy' | 'platforms' | 'launch'>('strategy');
+  const [activeTab, setActiveTab] = useState<
+    'strategy' | 'campaigns' | 'opportunities' | 'groups' | 'platforms' | 'trends' | 'launch'
+  >('strategy');
+
+  const tabs = [
+    { id: 'strategy', label: 'AI Strategy', icon: <Zap className="w-4 h-4" />, color: 'emerald' },
+    { id: 'campaigns', label: 'Campaigns', icon: <Megaphone className="w-4 h-4" />, color: 'blue' },
+    { id: 'opportunities', label: 'Opportunities', icon: <Eye className="w-4 h-4" />, color: 'amber' },
+    { id: 'groups', label: 'Communities', icon: <Users className="w-4 h-4" />, color: 'purple' },
+    { id: 'platforms', label: 'Platforms', icon: <Globe className="w-4 h-4" />, color: 'cyan' },
+    { id: 'trends', label: 'Trends', icon: <TrendingUp className="w-4 h-4" />, color: 'rose' },
+    { id: 'launch', label: 'Launch', icon: <Rocket className="w-4 h-4" />, color: 'violet' },
+  ];
 
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
       <section className="relative overflow-hidden">
-        {/* Background Effects */}
         <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/10 via-transparent to-transparent" />
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl" />
         <div className="absolute top-20 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
         
-        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-20 pb-16">
+        <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-16 pb-12">
           <div className="text-center max-w-4xl mx-auto">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium mb-6 animate-fade-in">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium mb-6">
               <Sparkles className="w-4 h-4" />
-              100+ FREE Marketing Tools Inside
+              9 Powerful Tools • All FREE APIs • Zero Cost Marketing
             </div>
             
-            {/* Headline */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 animate-slide-up">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6">
               <span className="text-white">Your AI-Powered</span>
               <br />
               <span className="gradient-text">Marketing Command Center</span>
             </h1>
             
-            {/* Subheadline */}
-            <p className="text-lg sm:text-xl text-slate-300 mb-8 max-w-2xl mx-auto animate-slide-up stagger-1">
-              Generate winning strategies, discover FREE platforms, and launch products 
-              like a pro. All powered by AI, all in one place.
+            <p className="text-lg sm:text-xl text-slate-300 mb-8 max-w-2xl mx-auto">
+              Generate strategies, find opportunities, manage campaigns, and launch products. 
+              All powered by AI, using 100% FREE APIs.
             </p>
-            
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up stagger-2">
-              <button 
-                onClick={() => setActiveTab('strategy')}
-                className="btn-primary flex items-center gap-2 text-lg"
+          </div>
+
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+            <QuickStat icon={<Globe />} value="100+" label="FREE Platforms" />
+            <QuickStat icon={<Eye />} value="Live" label="Reddit/HN Monitor" />
+            <QuickStat icon={<Users />} value="500+" label="Communities" />
+            <QuickStat icon={<Zap />} value="AI" label="Strategy Engine" />
+          </div>
+        </div>
+      </section>
+
+      {/* Main Navigation Tabs */}
+      <section className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-xl border-b border-white/10">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex overflow-x-auto py-3 gap-1 scrollbar-hide">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+                  activeTab === tab.id
+                    ? `bg-${tab.color}-500 text-white shadow-lg shadow-${tab.color}-500/25`
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+                style={activeTab === tab.id ? { 
+                  backgroundColor: tab.color === 'emerald' ? '#10b981' :
+                                   tab.color === 'blue' ? '#3b82f6' :
+                                   tab.color === 'amber' ? '#f59e0b' :
+                                   tab.color === 'purple' ? '#a855f7' :
+                                   tab.color === 'cyan' ? '#06b6d4' :
+                                   tab.color === 'rose' ? '#f43f5e' :
+                                   tab.color === 'violet' ? '#8b5cf6' : '#10b981'
+                } : {}}
               >
-                <Zap className="w-5 h-5" />
-                Generate Free Strategy
+                {tab.icon}
+                {tab.label}
               </button>
-              <button 
-                onClick={() => setActiveTab('platforms')}
-                className="btn-secondary flex items-center gap-2"
-              >
-                <Search className="w-5 h-5" />
-                Find FREE Platforms
-              </button>
-            </div>
-          </div>
-
-          {/* Stats Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 animate-slide-up stagger-3">
-            <StatCard icon={<Globe />} value="100+" label="FREE Platforms" />
-            <StatCard icon={<Zap />} value="AI" label="Strategy Generator" />
-            <StatCard icon={<Rocket />} value="15+" label="Launch Sites" />
-            <StatCard icon={<Users />} value="60+" label="CRAV Tools" />
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Main Tool Tabs */}
-      <section className="py-12">
+      {/* Tab Content */}
+      <section className="py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          {/* Tab Navigation */}
-          <div className="flex justify-center mb-8">
-            <div className="inline-flex p-1 rounded-xl bg-white/5 border border-white/10">
-              <TabButton 
-                active={activeTab === 'strategy'} 
-                onClick={() => setActiveTab('strategy')}
-                icon={<Zap className="w-4 h-4" />}
-                label="AI Strategy"
-              />
-              <TabButton 
-                active={activeTab === 'platforms'} 
-                onClick={() => setActiveTab('platforms')}
-                icon={<Globe className="w-4 h-4" />}
-                label="Platform Finder"
-              />
-              <TabButton 
-                active={activeTab === 'launch'} 
-                onClick={() => setActiveTab('launch')}
-                icon={<Rocket className="w-4 h-4" />}
-                label="Launch Checklist"
-              />
-            </div>
-          </div>
-
-          {/* Tab Content */}
-          <div className="animate-fade-in">
-            {activeTab === 'strategy' && <StrategyGenerator />}
-            {activeTab === 'platforms' && <PlatformFinder />}
-            {activeTab === 'launch' && <LaunchChecklist />}
-          </div>
+          {activeTab === 'strategy' && <StrategyGenerator />}
+          {activeTab === 'campaigns' && <CampaignManager />}
+          {activeTab === 'opportunities' && <OpportunityMonitor />}
+          {activeTab === 'groups' && <CommunityFinder />}
+          {activeTab === 'platforms' && <PlatformFinder />}
+          {activeTab === 'trends' && <TrendAnalyzer />}
+          {activeTab === 'launch' && <LaunchChecklist />}
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section className="py-20 border-t border-white/10">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-white mb-4">
-              Everything You Need to Market Like a Pro
-            </h2>
-            <p className="text-slate-400 max-w-2xl mx-auto">
-              FREE tools and AI-powered features to help you grow, launch, and scale.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <FeatureCard 
-              icon={<Target className="w-6 h-6" />}
-              title="Area Targeting"
-              description="Target customers by ZIP code with Census demographic data. Know your audience before you spend a dime."
-              badge="Pro"
-            />
-            <FeatureCard 
-              icon={<BarChart3 className="w-6 h-6" />}
-              title="Market Research"
-              description="Real-time trends from Reddit, Hacker News, and news sources. Stay ahead of the competition."
-              badge="FREE"
-            />
-            <FeatureCard 
-              icon={<Mail className="w-6 h-6" />}
-              title="Email Strategy"
-              description="AI-generated email campaigns with our Newsletter tool integration. Build and nurture your list."
-              badge="FREE"
-            />
-            <FeatureCard 
-              icon={<Share2 className="w-6 h-6" />}
-              title="Social Strategy"
-              description="Platform-specific content plans with optimal posting times. Grow your organic reach."
-              badge="FREE"
-            />
-            <FeatureCard 
-              icon={<TrendingUp className="w-6 h-6" />}
-              title="ROI Calculator"
-              description="Estimate returns before you invest. Make data-driven marketing decisions."
-              badge="FREE"
-            />
-            <FeatureCard 
-              icon={<DollarSign className="w-6 h-6" />}
-              title="Budget Optimizer"
-              description="Always shows FREE options first. Only spend when you're ready to scale."
-              badge="FREE"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Preview */}
-      <section className="py-20 bg-gradient-to-b from-transparent via-emerald-500/5 to-transparent">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-white mb-4">
-              Start FREE, Scale When Ready
-            </h2>
-            <p className="text-slate-400">
-              No credit card required. Upgrade only when you need more.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            <PricingCard 
-              name="Starter"
-              price="Free"
-              description="Everything you need to start"
-              features={[
-                '3 AI strategies/month',
-                '100+ FREE platforms directory',
-                '1 launch checklist',
-                'State-level targeting',
-                'Community support',
-              ]}
-            />
-            <PricingCard 
-              name="Pro"
-              price="$19"
-              period="/month"
-              description="For serious marketers"
-              popular
-              features={[
-                '50 AI strategies/month',
-                'ZIP code targeting',
-                'Census demographic data',
-                'Unlimited launches',
-                'Campaign analytics',
-                'Priority support',
-              ]}
-            />
-            <PricingCard 
-              name="Enterprise"
-              price="Custom"
-              description="For agencies & teams"
-              features={[
-                'Unlimited everything',
-                'White-label reports',
-                'API access',
-                'Dedicated manager',
-                'Custom integrations',
-                'SLA guarantee',
-              ]}
-            />
-          </div>
-        </div>
-      </section>
+      {/* Cross-Sell Footer */}
+      <CrossSellSection />
     </div>
   );
 }
 
 // ============================================================================
-// STRATEGY GENERATOR COMPONENT
+// STRATEGY GENERATOR (API: /api/strategy)
 // ============================================================================
 
 function StrategyGenerator() {
   const [formData, setFormData] = useState({
-    businessType: '',
-    focus: 'awareness',
+    businessName: '',
+    industry: '',
+    goal: 'awareness',
     budget: '0',
     timeline: '3 months',
-    platforms: ['social'],
-    area: 'national',
+    channels: ['social'],
   });
   const [loading, setLoading] = useState(false);
   const [strategy, setStrategy] = useState<any>(null);
+  const [error, setError] = useState('');
 
   const handleGenerate = async () => {
+    if (!formData.businessName || !formData.industry) {
+      setError('Please fill in business name and industry');
+      return;
+    }
+    
     setLoading(true);
+    setError('');
+    
     try {
       const response = await fetch('/api/strategy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          businessType: formData.businessType || 'General Business',
-          focus: formData.focus,
+          businessName: formData.businessName,
+          industry: formData.industry,
+          goal: formData.goal,
           budget: parseInt(formData.budget),
           timeline: formData.timeline,
-          platforms: formData.platforms,
-          area: { level: formData.area, value: 'US', name: 'United States' },
+          channels: formData.channels,
         }),
       });
+      
       const data = await response.json();
+      
       if (data.success) {
         setStrategy(data.data);
+      } else {
+        setError(data.errors?.join(', ') || 'Strategy generation failed');
       }
-    } catch (error) {
-      console.error('Strategy generation failed:', error);
+    } catch (err) {
+      setError('Network error - please try again');
     }
+    
     setLoading(false);
   };
 
   return (
     <div className="glass-card p-8">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 rounded-xl bg-emerald-500/10">
-          <Zap className="w-6 h-6 text-emerald-400" />
+      <SectionHeader
+        icon={<Zap className="w-6 h-6 text-emerald-400" />}
+        title="AI Strategy Generator"
+        subtitle="Get a custom marketing plan in seconds"
+        color="emerald"
+      />
+
+      {error && (
+        <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5" />
+          {error}
         </div>
-        <div>
-          <h3 className="text-xl font-bold text-white">AI Strategy Generator</h3>
-          <p className="text-sm text-slate-400">Get a custom marketing plan in seconds</p>
-        </div>
-      </div>
+      )}
 
       {!strategy ? (
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Form Fields */}
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                What is your business?
-              </label>
-              <input 
-                type="text"
-                placeholder="e.g., SaaS startup, local bakery, consulting..."
-                className="input-field"
-                value={formData.businessType}
-                onChange={(e) => setFormData({...formData, businessType: e.target.value})}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                What is your goal?
-              </label>
-              <select 
-                className="select-field"
-                value={formData.focus}
-                onChange={(e) => setFormData({...formData, focus: e.target.value})}
-              >
-                <option value="awareness">Brand Awareness</option>
-                <option value="leads">Lead Generation</option>
-                <option value="sales">Direct Sales</option>
-                <option value="retention">Customer Retention</option>
-                <option value="launch">Product Launch</option>
-                <option value="hiring">Recruitment</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Monthly Budget
-              </label>
-              <select 
-                className="select-field"
-                value={formData.budget}
-                onChange={(e) => setFormData({...formData, budget: e.target.value})}
-              >
-                <option value="0">$0 - FREE only</option>
-                <option value="100">Up to $100</option>
-                <option value="500">Up to $500</option>
-                <option value="1000">Up to $1,000</option>
-                <option value="5000">$1,000+</option>
-              </select>
-            </div>
+            <InputField
+              label="Business Name"
+              placeholder="e.g., My Awesome Startup"
+              value={formData.businessName}
+              onChange={(v) => setFormData({ ...formData, businessName: v })}
+            />
+            
+            <InputField
+              label="Industry"
+              placeholder="e.g., SaaS, E-commerce, Consulting..."
+              value={formData.industry}
+              onChange={(v) => setFormData({ ...formData, industry: v })}
+            />
+            
+            <SelectField
+              label="Campaign Goal"
+              value={formData.goal}
+              onChange={(v) => setFormData({ ...formData, goal: v })}
+              options={[
+                { value: 'awareness', label: 'Brand Awareness' },
+                { value: 'leads', label: 'Lead Generation' },
+                { value: 'sales', label: 'Direct Sales' },
+                { value: 'retention', label: 'Customer Retention' },
+                { value: 'launch', label: 'Product Launch' },
+              ]}
+            />
           </div>
 
           <div className="space-y-4">
+            <SelectField
+              label="Monthly Budget"
+              value={formData.budget}
+              onChange={(v) => setFormData({ ...formData, budget: v })}
+              options={[
+                { value: '0', label: '$0 - FREE only' },
+                { value: '100', label: 'Up to $100' },
+                { value: '500', label: 'Up to $500' },
+                { value: '1000', label: 'Up to $1,000' },
+                { value: '5000', label: '$1,000+' },
+              ]}
+            />
+            
+            <SelectField
+              label="Timeline"
+              value={formData.timeline}
+              onChange={(v) => setFormData({ ...formData, timeline: v })}
+              options={[
+                { value: '1 month', label: '1 month sprint' },
+                { value: '3 months', label: '3 months' },
+                { value: '6 months', label: '6 months' },
+                { value: '12 months', label: '12 months' },
+              ]}
+            />
+            
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Timeline
-              </label>
-              <select 
-                className="select-field"
-                value={formData.timeline}
-                onChange={(e) => setFormData({...formData, timeline: e.target.value})}
-              >
-                <option value="1 month">1 month sprint</option>
-                <option value="3 months">3 months</option>
-                <option value="6 months">6 months</option>
-                <option value="12 months">12 months</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Target Area
-              </label>
-              <select 
-                className="select-field"
-                value={formData.area}
-                onChange={(e) => setFormData({...formData, area: e.target.value})}
-              >
-                <option value="national">National (USA)</option>
-                <option value="state">State Level</option>
-                <option value="zip">ZIP Code (Pro)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Channels (select multiple)
+                Marketing Channels
               </label>
               <div className="flex flex-wrap gap-2">
                 {['social', 'email', 'content', 'seo', 'local', 'community'].map((channel) => (
-                  <button
+                  <ToggleChip
                     key={channel}
+                    label={channel.charAt(0).toUpperCase() + channel.slice(1)}
+                    active={formData.channels.includes(channel)}
                     onClick={() => {
-                      const platforms = formData.platforms.includes(channel)
-                        ? formData.platforms.filter(p => p !== channel)
-                        : [...formData.platforms, channel];
-                      setFormData({...formData, platforms});
+                      const channels = formData.channels.includes(channel)
+                        ? formData.channels.filter(c => c !== channel)
+                        : [...formData.channels, channel];
+                      setFormData({ ...formData, channels });
                     }}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      formData.platforms.includes(channel)
-                        ? 'bg-emerald-500 text-white'
-                        : 'bg-white/5 text-slate-300 hover:bg-white/10'
-                    }`}
-                  >
-                    {channel.charAt(0).toUpperCase() + channel.slice(1)}
-                  </button>
+                  />
                 ))}
               </div>
             </div>
@@ -400,7 +322,7 @@ function StrategyGenerator() {
             >
               {loading ? (
                 <>
-                  <div className="spinner" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                   Generating Strategy...
                 </>
               ) : (
@@ -419,75 +341,42 @@ function StrategyGenerator() {
   );
 }
 
-// ============================================================================
-// STRATEGY RESULT COMPONENT
-// ============================================================================
-
 function StrategyResult({ strategy, onReset }: { strategy: any; onReset: () => void }) {
   return (
     <div className="space-y-6">
-      {/* Summary */}
       <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
         <h4 className="font-semibold text-emerald-400 mb-2">Strategy Summary</h4>
         <p className="text-slate-300">{strategy.summary}</p>
       </div>
 
-      {/* Phases */}
-      <div>
-        <h4 className="font-semibold text-white mb-4">Implementation Phases</h4>
-        <div className="space-y-3">
-          {strategy.phases?.map((phase: any, idx: number) => (
-            <div key={idx} className="p-4 rounded-xl bg-white/5 border border-white/10">
-              <div className="flex items-center gap-3 mb-2">
-                <span className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 text-sm font-bold">
-                  {phase.phase}
-                </span>
-                <div>
-                  <h5 className="font-medium text-white">{phase.name}</h5>
-                  <span className="text-sm text-slate-400">{phase.duration}</span>
-                </div>
-              </div>
-              <p className="text-sm text-slate-400 ml-11">{phase.milestone}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Expected Results */}
-      <div>
-        <h4 className="font-semibold text-white mb-4">Expected Results</h4>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <ResultCard label="Reach" value={strategy.expectedResults?.reach} />
-          <ResultCard label="Engagement" value={strategy.expectedResults?.engagement} />
-          <ResultCard label="Leads" value={strategy.expectedResults?.leads} />
-          <ResultCard label="Conversions" value={strategy.expectedResults?.conversions} />
-          <ResultCard label="ROI" value={strategy.expectedResults?.roi} />
-          <ResultCard label="Timeframe" value={strategy.expectedResults?.timeframe} />
-        </div>
-      </div>
-
-      {/* Cross-sell */}
-      {strategy.crossSellRecommendations?.length > 0 && (
+      {strategy.phases?.length > 0 && (
         <div>
-          <h4 className="font-semibold text-white mb-4">Recommended CRAV Tools</h4>
-          <div className="grid md:grid-cols-2 gap-3">
-            {strategy.crossSellRecommendations.slice(0, 4).map((rec: any, idx: number) => (
-              <a 
-                key={idx}
-                href={rec.productUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 hover:border-emerald-500/30 transition-all"
-              >
-                <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-500/10">
-                  <Star className="w-5 h-5 text-emerald-400" />
+          <h4 className="font-semibold text-white mb-4">Implementation Phases</h4>
+          <div className="space-y-3">
+            {strategy.phases.map((phase: any, idx: number) => (
+              <div key={idx} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 text-sm font-bold">
+                    {phase.phase || idx + 1}
+                  </span>
+                  <div>
+                    <h5 className="font-medium text-white">{phase.name}</h5>
+                    <span className="text-sm text-slate-400">{phase.duration}</span>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h5 className="font-medium text-white truncate">{rec.productName}</h5>
-                  <p className="text-xs text-slate-400 truncate">{rec.reason}</p>
-                </div>
-                <span className="text-xs font-medium text-emerald-400">FREE</span>
-              </a>
+                <p className="text-sm text-slate-400 ml-11">{phase.milestone}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {strategy.expectedResults && (
+        <div>
+          <h4 className="font-semibold text-white mb-4">Expected Results</h4>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {Object.entries(strategy.expectedResults).map(([key, value]) => (
+              <MetricCard key={key} label={key} value={String(value)} />
             ))}
           </div>
         </div>
@@ -501,25 +390,481 @@ function StrategyResult({ strategy, onReset }: { strategy: any; onReset: () => v
 }
 
 // ============================================================================
-// PLATFORM FINDER COMPONENT
+// CAMPAIGN MANAGER (API: /api/campaigns)
+// ============================================================================
+
+function CampaignManager() {
+  const [niches, setNiches] = useState<string[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedNiche, setSelectedNiche] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [generatedContent, setGeneratedContent] = useState<any>(null);
+
+  useEffect(() => {
+    fetchCampaignData();
+  }, []);
+
+  const fetchCampaignData = async () => {
+    try {
+      // Fetch niches
+      const nichesRes = await fetch('/api/campaigns?action=niches');
+      const nichesData = await nichesRes.json();
+      
+      // Fetch templates
+      const templatesRes = await fetch('/api/campaigns?action=templates');
+      const templatesData = await templatesRes.json();
+      
+      setNiches(nichesData.niches || []);
+      setTemplates(templatesData.templates || []);
+    } catch (err) {
+      console.error('Failed to fetch campaign data:', err);
+    }
+    setLoading(false);
+  };
+
+  const generateContent = async (niche: string) => {
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/campaigns?action=recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ niche }),
+      });
+      const data = await res.json();
+      setGeneratedContent(data);
+    } catch (err) {
+      console.error('Failed to generate content:', err);
+    }
+    setGenerating(false);
+  };
+
+  if (loading) {
+    return <LoadingState message="Loading campaign tools..." />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="glass-card p-8">
+        <SectionHeader
+          icon={<Megaphone className="w-6 h-6 text-blue-400" />}
+          title="Campaign Manager"
+          subtitle="Create and manage marketing campaigns for any niche"
+          color="blue"
+        />
+
+        {/* Niche Selection */}
+        <div className="mb-8">
+          <label className="block text-sm font-medium text-slate-300 mb-3">
+            Select Your Niche
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {niches.map((niche) => (
+              <button
+                key={niche}
+                onClick={() => {
+                  setSelectedNiche(niche);
+                  generateContent(niche);
+                }}
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                  selectedNiche === niche
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10'
+                }`}
+              >
+                {niche.charAt(0).toUpperCase() + niche.slice(1).replace('-', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Generated Recommendations */}
+        {generating && <LoadingState message="Generating recommendations..." />}
+        
+        {generatedContent && !generating && (
+          <div className="space-y-6">
+            <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+              <h4 className="font-semibold text-blue-400 mb-2">
+                Recommendations for {selectedNiche}
+              </h4>
+              <p className="text-slate-300">
+                Best platforms and strategies for your niche based on audience data.
+              </p>
+            </div>
+
+            {generatedContent.recommendations?.map((rec: any, idx: number) => (
+              <div key={idx} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h5 className="font-medium text-white">{rec.platform}</h5>
+                    <p className="text-sm text-slate-400 mt-1">{rec.strategy}</p>
+                  </div>
+                  <span className="px-2 py-1 rounded bg-blue-500/20 text-blue-400 text-xs font-medium">
+                    {rec.priority}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Post Templates */}
+        <div className="mt-8">
+          <h4 className="font-semibold text-white mb-4">Post Templates</h4>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {templates.slice(0, 6).map((template, idx) => (
+              <div key={idx} className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-blue-500/30 transition-all cursor-pointer">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="px-2 py-0.5 rounded bg-white/10 text-xs text-slate-400">
+                    {template.category}
+                  </span>
+                </div>
+                <p className="text-sm text-slate-300 line-clamp-3">{template.template}</p>
+                <button className="mt-3 text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                  <Copy className="w-3 h-3" /> Copy Template
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// OPPORTUNITY MONITOR (API: /api/opportunities)
+// ============================================================================
+
+function OpportunityMonitor() {
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedNiche, setSelectedNiche] = useState('saas');
+  const [keywords, setKeywords] = useState('');
+
+  const niches = ['saas', 'crochet', 'scrapbooking', 'whiskey-bourbon', 'sports-cards'];
+
+  const searchOpportunities = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (selectedNiche) params.append('niche', selectedNiche);
+      if (keywords) params.append('keywords', keywords);
+      
+      const res = await fetch(`/api/opportunities?${params.toString()}`);
+      const data = await res.json();
+      setOpportunities(data.opportunities || []);
+    } catch (err) {
+      console.error('Failed to fetch opportunities:', err);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    searchOpportunities();
+  }, [selectedNiche]);
+
+  return (
+    <div className="space-y-6">
+      <div className="glass-card p-8">
+        <SectionHeader
+          icon={<Eye className="w-6 h-6 text-amber-400" />}
+          title="Opportunity Monitor"
+          subtitle="Find marketing opportunities on Reddit & Hacker News"
+          color="amber"
+        />
+
+        {/* Filters */}
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-sm font-medium text-slate-300 mb-2">Niche</label>
+            <div className="flex flex-wrap gap-2">
+              {niches.map((niche) => (
+                <ToggleChip
+                  key={niche}
+                  label={niche.replace('-', ' ')}
+                  active={selectedNiche === niche}
+                  onClick={() => setSelectedNiche(niche)}
+                />
+              ))}
+            </div>
+          </div>
+          
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-sm font-medium text-slate-300 mb-2">
+              Custom Keywords
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="tool, app, help..."
+                className="input-field flex-1"
+                value={keywords}
+                onChange={(e) => setKeywords(e.target.value)}
+              />
+              <button onClick={searchOpportunities} className="btn-primary px-4">
+                <Search className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Opportunities List */}
+        {loading ? (
+          <LoadingState message="Scanning Reddit & Hacker News..." />
+        ) : opportunities.length > 0 ? (
+          <div className="space-y-4">
+            {opportunities.map((opp, idx) => (
+              <OpportunityCard key={idx} opportunity={opp} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<Eye className="w-12 h-12" />}
+            title="No opportunities found"
+            description="Try different keywords or check back later"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function OpportunityCard({ opportunity }: { opportunity: any }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyResponse = () => {
+    if (opportunity.suggestedResponse) {
+      navigator.clipboard.writeText(opportunity.suggestedResponse);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-amber-500/30 transition-all">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+              opportunity.source === 'reddit' 
+                ? 'bg-orange-500/20 text-orange-400' 
+                : 'bg-amber-500/20 text-amber-400'
+            }`}>
+              {opportunity.source}
+            </span>
+            <span className="text-xs text-slate-500">
+              Score: {opportunity.score}/10
+            </span>
+          </div>
+          
+          <h4 className="font-medium text-white mb-2">{opportunity.title}</h4>
+          
+          {opportunity.suggestedResponse && (
+            <div className="mt-3 p-3 rounded-lg bg-white/5 border border-white/10">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-slate-400">Suggested Response</span>
+                <button 
+                  onClick={copyResponse}
+                  className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                >
+                  {copied ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <p className="text-sm text-slate-300">{opportunity.suggestedResponse}</p>
+            </div>
+          )}
+        </div>
+        
+        <a 
+          href={opportunity.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
+        >
+          <ExternalLink className="w-4 h-4 text-slate-400" />
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// COMMUNITY FINDER (API: /api/groups)
+// ============================================================================
+
+function CommunityFinder() {
+  const [groups, setGroups] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedNiche, setSelectedNiche] = useState('saas');
+  const [selectedPlatform, setSelectedPlatform] = useState('');
+
+  const niches = ['crochet', 'scrapbooking', 'whiskey-bourbon', 'sports-cards', 'pokemon-cards', 'saas', 'freelancing'];
+  const platforms = ['facebook-groups', 'reddit', 'linkedin', 'discord', 'twitter'];
+
+  const fetchGroups = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        action: 'suggestions',
+        niche: selectedNiche,
+      });
+      if (selectedPlatform) params.append('platform', selectedPlatform);
+      
+      const res = await fetch(`/api/groups?${params.toString()}`);
+      const data = await res.json();
+      setGroups(data.groups || []);
+    } catch (err) {
+      console.error('Failed to fetch groups:', err);
+    }
+    setLoading(false);
+  }, [selectedNiche, selectedPlatform]);
+
+  useEffect(() => {
+    fetchGroups();
+  }, [fetchGroups]);
+
+  return (
+    <div className="space-y-6">
+      <div className="glass-card p-8">
+        <SectionHeader
+          icon={<Users className="w-6 h-6 text-purple-400" />}
+          title="Community Finder"
+          subtitle="Discover Facebook groups, subreddits, and communities for your niche"
+          color="purple"
+        />
+
+        {/* Filters */}
+        <div className="space-y-4 mb-6">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Niche</label>
+            <div className="flex flex-wrap gap-2">
+              {niches.map((niche) => (
+                <ToggleChip
+                  key={niche}
+                  label={niche.replace('-', ' ')}
+                  active={selectedNiche === niche}
+                  onClick={() => setSelectedNiche(niche)}
+                />
+              ))}
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Platform Filter</label>
+            <div className="flex flex-wrap gap-2">
+              <ToggleChip
+                label="All Platforms"
+                active={!selectedPlatform}
+                onClick={() => setSelectedPlatform('')}
+              />
+              {platforms.map((platform) => (
+                <ToggleChip
+                  key={platform}
+                  label={platform.replace('-', ' ')}
+                  active={selectedPlatform === platform}
+                  onClick={() => setSelectedPlatform(platform)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Groups Grid */}
+        {loading ? (
+          <LoadingState message="Finding communities..." />
+        ) : groups.length > 0 ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {groups.map((group, idx) => (
+              <GroupCard key={idx} group={group} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<Users className="w-12 h-12" />}
+            title="No communities found"
+            description="Try a different niche or platform"
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GroupCard({ group }: { group: any }) {
+  const platformColors: Record<string, string> = {
+    'facebook-groups': 'bg-blue-500/20 text-blue-400',
+    'reddit': 'bg-orange-500/20 text-orange-400',
+    'linkedin': 'bg-sky-500/20 text-sky-400',
+    'discord': 'bg-indigo-500/20 text-indigo-400',
+    'twitter': 'bg-slate-500/20 text-slate-400',
+  };
+
+  return (
+    <div className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-purple-500/30 transition-all">
+      <div className="flex items-start justify-between mb-3">
+        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+          platformColors[group.platform] || 'bg-white/10 text-slate-400'
+        }`}>
+          {group.platform?.replace('-', ' ')}
+        </span>
+        {group.members && (
+          <span className="text-xs text-slate-500">{group.members}</span>
+        )}
+      </div>
+      
+      <h4 className="font-medium text-white mb-2 line-clamp-2">{group.name}</h4>
+      
+      {group.strategy && (
+        <p className="text-xs text-slate-400 mb-3 line-clamp-2">{group.strategy}</p>
+      )}
+      
+      <div className="flex items-center justify-between">
+        {group.activity && (
+          <span className="text-xs text-emerald-400">{group.activity}</span>
+        )}
+        {group.url && (
+          <a 
+            href={group.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-purple-400 hover:text-purple-300 flex items-center gap-1"
+          >
+            Visit <ExternalLink className="w-3 h-3" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// PLATFORM FINDER (API: /api/platforms)
 // ============================================================================
 
 function PlatformFinder() {
+  const [platforms, setPlatforms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [tierFilter, setTierFilter] = useState('free');
-  
-  const platforms = [
-    { name: 'Buffer (Free)', category: 'social', tier: 'free', description: 'Schedule posts to 3 social channels', crav: false },
-    { name: 'CRAV Social Graphics ⭐', category: 'social', tier: 'free', description: 'AI-powered social media graphics', crav: true },
-    { name: 'Mailchimp (Free)', category: 'email', tier: 'free', description: 'Up to 500 contacts, 1,000 emails/month', crav: false },
-    { name: 'CRAV Newsletter ⭐', category: 'email', tier: 'free', description: 'AI-powered newsletter builder', crav: true },
-    { name: 'Google Search Console', category: 'seo', tier: 'free', description: 'Official Google SEO tool', crav: false },
-    { name: 'Google Business Profile', category: 'local', tier: 'free', description: 'Essential for local SEO', crav: false },
-    { name: 'Medium', category: 'content', tier: 'free', description: 'Write to a built-in audience', crav: false },
-    { name: 'Reddit', category: 'community', tier: 'free', description: 'Engage with niche communities', crav: false },
-    { name: 'YouTube', category: 'video', tier: 'free', description: 'Worlds largest video platform', crav: false },
-    { name: 'Product Hunt', category: 'launch', tier: 'free', description: '5M+ monthly visitors', crav: false },
-  ];
+
+  useEffect(() => {
+    fetchPlatforms();
+  }, []);
+
+  const fetchPlatforms = async () => {
+    try {
+      const res = await fetch('/api/platforms');
+      const data = await res.json();
+      setPlatforms(data.platforms || []);
+    } catch (err) {
+      console.error('Failed to fetch platforms:', err);
+    }
+    setLoading(false);
+  };
+
+  const categories = ['all', 'social', 'email', 'seo', 'content', 'local', 'community', 'video', 'launch'];
 
   const filteredPlatforms = platforms.filter(p => {
     if (filter !== 'all' && p.category !== filter) return false;
@@ -527,41 +872,37 @@ function PlatformFinder() {
     return true;
   });
 
+  if (loading) {
+    return <LoadingState message="Loading platforms..." />;
+  }
+
   return (
     <div className="glass-card p-8">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 rounded-xl bg-cyan-500/10">
-          <Globe className="w-6 h-6 text-cyan-400" />
-        </div>
-        <div>
-          <h3 className="text-xl font-bold text-white">Platform Finder</h3>
-          <p className="text-sm text-slate-400">Discover 100+ marketing platforms (FREE first!)</p>
-        </div>
-      </div>
+      <SectionHeader
+        icon={<Globe className="w-6 h-6 text-cyan-400" />}
+        title="Platform Directory"
+        subtitle="Discover 100+ marketing platforms (FREE first!)"
+        color="cyan"
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-6">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-400">Category:</label>
-          <select 
-            className="select-field py-2 px-3 text-sm"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          >
-            <option value="all">All Categories</option>
-            <option value="social">Social Media</option>
-            <option value="email">Email Marketing</option>
-            <option value="seo">SEO</option>
-            <option value="content">Content</option>
-            <option value="local">Local</option>
-            <option value="community">Community</option>
-            <option value="video">Video</option>
-            <option value="launch">Launch</option>
-          </select>
+        <div>
+          <label className="text-sm text-slate-400 mb-2 block">Category</label>
+          <div className="flex flex-wrap gap-2">
+            {categories.map((cat) => (
+              <ToggleChip
+                key={cat}
+                label={cat === 'all' ? 'All' : cat.charAt(0).toUpperCase() + cat.slice(1)}
+                active={filter === cat}
+                onClick={() => setFilter(cat)}
+              />
+            ))}
+          </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-400">Pricing:</label>
+        <div>
+          <label className="text-sm text-slate-400 mb-2 block">Pricing</label>
           <div className="flex rounded-lg overflow-hidden border border-white/10">
             <button 
               onClick={() => setTierFilter('free')}
@@ -588,67 +929,211 @@ function PlatformFinder() {
       </div>
 
       {/* Platform Grid */}
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredPlatforms.map((platform, idx) => (
           <div 
             key={idx}
-            className={`platform-card tier-free ${platform.crav ? 'ring-1 ring-emerald-500/50' : ''}`}
+            className={`p-4 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-500/30 transition-all ${
+              platform.crav ? 'ring-1 ring-emerald-500/50' : ''
+            }`}
           >
             <div className="flex items-start justify-between mb-2">
               <h4 className="font-semibold text-white">{platform.name}</h4>
-              <span className="badge-free px-2 py-0.5 rounded text-xs font-medium">FREE</span>
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                platform.tier === 'free' ? 'badge-free' : 'badge-budget'
+              }`}>
+                {platform.tier === 'free' ? 'FREE' : platform.price}
+              </span>
             </div>
             <p className="text-sm text-slate-400 mb-3">{platform.description}</p>
             <div className="flex items-center justify-between">
               <span className="text-xs text-slate-500 capitalize">{platform.category}</span>
               {platform.crav && (
-                <span className="text-xs text-emerald-400 font-medium">CRAV Tool</span>
+                <span className="text-xs text-emerald-400 font-medium flex items-center gap-1">
+                  <Star className="w-3 h-3" /> CRAV Tool
+                </span>
               )}
             </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-6 text-center">
-        <a href="/platforms" className="btn-secondary inline-flex items-center gap-2">
-          View All 100+ Platforms
-          <ArrowRight className="w-4 h-4" />
-        </a>
-      </div>
+      {filteredPlatforms.length === 0 && (
+        <EmptyState
+          icon={<Globe className="w-12 h-12" />}
+          title="No platforms found"
+          description="Try adjusting your filters"
+        />
+      )}
     </div>
   );
 }
 
 // ============================================================================
-// LAUNCH CHECKLIST COMPONENT
+// TREND ANALYZER (API: /api/trends)
+// ============================================================================
+
+function TrendAnalyzer() {
+  const [keyword, setKeyword] = useState('');
+  const [trends, setTrends] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const searchTrends = async () => {
+    if (!keyword.trim()) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/trends?keyword=${encodeURIComponent(keyword)}`);
+      const data = await res.json();
+      setTrends(data);
+    } catch (err) {
+      console.error('Failed to fetch trends:', err);
+    }
+    setLoading(false);
+  };
+
+  const popularSearches = ['AI tools', 'remote work', 'cryptocurrency', 'sustainable living', 'side hustle'];
+
+  return (
+    <div className="glass-card p-8">
+      <SectionHeader
+        icon={<TrendingUp className="w-6 h-6 text-rose-400" />}
+        title="Trend Analyzer"
+        subtitle="Discover trending topics with Google Trends data"
+        color="rose"
+      />
+
+      {/* Search */}
+      <div className="mb-6">
+        <div className="flex gap-3">
+          <input
+            type="text"
+            placeholder="Enter a keyword to analyze..."
+            className="input-field flex-1"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && searchTrends()}
+          />
+          <button 
+            onClick={searchTrends}
+            disabled={loading || !keyword.trim()}
+            className="btn-primary flex items-center gap-2"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            Analyze
+          </button>
+        </div>
+        
+        <div className="mt-3">
+          <span className="text-xs text-slate-500">Popular searches: </span>
+          {popularSearches.map((term, idx) => (
+            <button
+              key={idx}
+              onClick={() => { setKeyword(term); }}
+              className="text-xs text-cyan-400 hover:text-cyan-300 ml-2"
+            >
+              {term}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Results */}
+      {loading && <LoadingState message="Analyzing trends..." />}
+      
+      {trends && !loading && (
+        <div className="space-y-6">
+          {trends.interestOverTime && (
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+              <h4 className="font-semibold text-white mb-4">Interest Over Time</h4>
+              <div className="h-32 flex items-end gap-1">
+                {trends.interestOverTime.slice(-30).map((point: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className="flex-1 bg-rose-500/50 rounded-t"
+                    style={{ height: `${point.value}%` }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {trends.relatedQueries && (
+            <div>
+              <h4 className="font-semibold text-white mb-4">Related Queries</h4>
+              <div className="flex flex-wrap gap-2">
+                {trends.relatedQueries.map((query: any, idx: number) => (
+                  <span 
+                    key={idx}
+                    className="px-3 py-1.5 rounded-full bg-white/5 text-sm text-slate-300 border border-white/10"
+                  >
+                    {query.query}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!trends && !loading && (
+        <EmptyState
+          icon={<TrendingUp className="w-12 h-12" />}
+          title="Search for trends"
+          description="Enter a keyword above to see trending data"
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// LAUNCH CHECKLIST (API: /api/launch)
 // ============================================================================
 
 function LaunchChecklist() {
   const [productName, setProductName] = useState('');
-  
+  const [launchData, setLaunchData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const generateChecklist = async () => {
+    if (!productName.trim()) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch('/api/launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productName }),
+      });
+      const data = await res.json();
+      setLaunchData(data);
+    } catch (err) {
+      console.error('Failed to generate checklist:', err);
+    }
+    setLoading(false);
+  };
+
   const launchPlatforms = [
-    { name: 'Product Hunt', audience: '5M+ monthly', conversion: '2-5%', bestDay: 'Tuesday' },
-    { name: 'Hacker News', audience: '10M+ monthly', conversion: '1-3%', bestDay: 'Tue-Thu' },
-    { name: 'Indie Hackers', audience: '100K+ monthly', conversion: '3-8%', bestDay: 'Weekdays' },
-    { name: 'Reddit', audience: '52M+ daily', conversion: '1-5%', bestDay: 'Tue-Thu' },
-    { name: 'BetaList', audience: '40K+ subscribers', conversion: '5-15%', bestDay: 'Mon-Wed' },
-    { name: 'Twitter/X', audience: '350M+ monthly', conversion: '0.5-2%', bestDay: 'Any' },
+    { name: 'Product Hunt', audience: '5M+ monthly', conversion: '2-5%', bestDay: 'Tuesday', free: true },
+    { name: 'Hacker News', audience: '10M+ monthly', conversion: '1-3%', bestDay: 'Tue-Thu', free: true },
+    { name: 'Indie Hackers', audience: '100K+ monthly', conversion: '3-8%', bestDay: 'Weekdays', free: true },
+    { name: 'Reddit', audience: '52M+ daily', conversion: '1-5%', bestDay: 'Tue-Thu', free: true },
+    { name: 'BetaList', audience: '40K+ subscribers', conversion: '5-15%', bestDay: 'Mon-Wed', free: true },
+    { name: 'Twitter/X', audience: '350M+ monthly', conversion: '0.5-2%', bestDay: 'Any', free: true },
   ];
 
   return (
     <div className="glass-card p-8">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-3 rounded-xl bg-violet-500/10">
-          <Rocket className="w-6 h-6 text-violet-400" />
-        </div>
-        <div>
-          <h3 className="text-xl font-bold text-white">Launch Checklist Generator</h3>
-          <p className="text-sm text-slate-400">All platforms are 100% FREE to submit</p>
-        </div>
-      </div>
+      <SectionHeader
+        icon={<Rocket className="w-6 h-6 text-violet-400" />}
+        title="Launch Checklist Generator"
+        subtitle="All platforms are 100% FREE to submit"
+        color="violet"
+      />
 
       {/* Product Input */}
-      <div className="mb-6">
+      <div className="mb-8">
         <label className="block text-sm font-medium text-slate-300 mb-2">
           What are you launching?
         </label>
@@ -660,14 +1145,36 @@ function LaunchChecklist() {
             value={productName}
             onChange={(e) => setProductName(e.target.value)}
           />
-          <button className="btn-primary flex items-center gap-2">
-            <Play className="w-4 h-4" />
+          <button 
+            onClick={generateChecklist}
+            disabled={loading || !productName.trim()}
+            className="btn-primary flex items-center gap-2"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
             Generate Checklist
           </button>
         </div>
       </div>
 
-      {/* Launch Platforms Preview */}
+      {/* Generated Checklist */}
+      {launchData && (
+        <div className="mb-8 p-4 rounded-xl bg-violet-500/10 border border-violet-500/20">
+          <h4 className="font-semibold text-violet-400 mb-3">Your Launch Plan for {productName}</h4>
+          {launchData.checklist?.map((item: any, idx: number) => (
+            <div key={idx} className="flex items-start gap-3 py-2 border-b border-white/5 last:border-0">
+              <div className="w-6 h-6 rounded-full bg-violet-500/20 flex items-center justify-center text-xs text-violet-400">
+                {idx + 1}
+              </div>
+              <div>
+                <p className="text-sm text-white">{item.task}</p>
+                <p className="text-xs text-slate-400">{item.timing}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Launch Platforms */}
       <div>
         <h4 className="font-semibold text-white mb-4">FREE Launch Platforms</h4>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -696,9 +1203,10 @@ function LaunchChecklist() {
         </div>
       </div>
 
+      {/* Pro Tip */}
       <div className="mt-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
         <div className="flex items-start gap-3">
-          <Calendar className="w-5 h-5 text-amber-400 mt-0.5" />
+          <Lightbulb className="w-5 h-5 text-amber-400 mt-0.5" />
           <div>
             <h5 className="font-medium text-amber-400">Pro Tip</h5>
             <p className="text-sm text-slate-300">
@@ -713,128 +1221,210 @@ function LaunchChecklist() {
 }
 
 // ============================================================================
+// CROSS-SELL SECTION
+// ============================================================================
+
+function CrossSellSection() {
+  const tools = [
+    { name: 'Logo Generator', desc: 'AI-powered logo design', icon: <Star />, free: true },
+    { name: 'Newsletter Builder', desc: 'Create email campaigns', icon: <Mail />, free: true },
+    { name: 'Social Graphics', desc: 'Design social media posts', icon: <Share2 />, free: true },
+    { name: 'Website Builder', desc: 'Build landing pages', icon: <Globe />, free: true },
+  ];
+
+  return (
+    <section className="py-16 border-t border-white/10">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-white mb-2">
+            More FREE Tools from CR AudioViz AI
+          </h2>
+          <p className="text-slate-400">
+            60+ professional tools to grow your business
+          </p>
+        </div>
+        
+        <div className="grid md:grid-cols-4 gap-4">
+          {tools.map((tool, idx) => (
+            <a
+              key={idx}
+              href="https://craudiovizai.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-emerald-500/30 transition-all group"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20 transition-all">
+                  {tool.icon}
+                </div>
+                <span className="text-xs font-medium text-emerald-400">FREE</span>
+              </div>
+              <h4 className="font-medium text-white">{tool.name}</h4>
+              <p className="text-xs text-slate-400">{tool.desc}</p>
+            </a>
+          ))}
+        </div>
+        
+        <div className="text-center mt-8">
+          <a 
+            href="https://craudiovizai.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300"
+          >
+            Explore all 60+ tools <ArrowRight className="w-4 h-4" />
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================================
 // HELPER COMPONENTS
 // ============================================================================
 
-function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+function SectionHeader({ 
+  icon, 
+  title, 
+  subtitle, 
+  color 
+}: { 
+  icon: React.ReactNode; 
+  title: string; 
+  subtitle: string; 
+  color: string;
+}) {
   return (
-    <div className="glass-card p-5 text-center">
-      <div className="flex justify-center mb-3 text-emerald-400">{icon}</div>
-      <div className="text-2xl font-bold text-white mb-1">{value}</div>
-      <div className="text-sm text-slate-400">{label}</div>
+    <div className="flex items-center gap-3 mb-6">
+      <div className={`p-3 rounded-xl bg-${color}-500/10`}>
+        {icon}
+      </div>
+      <div>
+        <h3 className="text-xl font-bold text-white">{title}</h3>
+        <p className="text-sm text-slate-400">{subtitle}</p>
+      </div>
     </div>
   );
 }
 
-function TabButton({ 
-  active, 
-  onClick, 
-  icon, 
-  label 
+function QuickStat({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+  return (
+    <div className="glass-card p-4 text-center">
+      <div className="flex justify-center mb-2 text-emerald-400">{icon}</div>
+      <div className="text-xl font-bold text-white">{value}</div>
+      <div className="text-xs text-slate-400">{label}</div>
+    </div>
+  );
+}
+
+function InputField({ 
+  label, 
+  placeholder, 
+  value, 
+  onChange 
 }: { 
+  label: string; 
+  placeholder: string; 
+  value: string; 
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-300 mb-2">{label}</label>
+      <input
+        type="text"
+        placeholder={placeholder}
+        className="input-field"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function SelectField({ 
+  label, 
+  value, 
+  onChange, 
+  options 
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-300 mb-2">{label}</label>
+      <select 
+        className="select-field"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function ToggleChip({ 
+  label, 
+  active, 
+  onClick 
+}: { 
+  label: string; 
   active: boolean; 
-  onClick: () => void; 
-  icon: React.ReactNode; 
-  label: string;
+  onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
-        active 
-          ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/25' 
-          : 'text-slate-400 hover:text-white hover:bg-white/5'
+      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+        active
+          ? 'bg-emerald-500 text-white'
+          : 'bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10'
       }`}
     >
-      {icon}
       {label}
     </button>
   );
 }
 
-function FeatureCard({ 
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center">
+      <div className="text-lg font-bold text-white capitalize">{value}</div>
+      <div className="text-xs text-slate-400 capitalize">{label.replace(/([A-Z])/g, ' $1').trim()}</div>
+    </div>
+  );
+}
+
+function LoadingState({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12">
+      <Loader2 className="w-8 h-8 text-emerald-400 animate-spin mb-4" />
+      <p className="text-slate-400">{message}</p>
+    </div>
+  );
+}
+
+function EmptyState({ 
   icon, 
   title, 
-  description, 
-  badge 
+  description 
 }: { 
   icon: React.ReactNode; 
   title: string; 
-  description: string; 
-  badge: string;
+  description: string;
 }) {
   return (
-    <div className="glass-card p-6 card-hover">
-      <div className="flex items-start justify-between mb-4">
-        <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
-          {icon}
-        </div>
-        <span className={`px-2 py-1 rounded text-xs font-medium ${
-          badge === 'FREE' ? 'badge-free' : 'badge-budget'
-        }`}>
-          {badge}
-        </span>
-      </div>
-      <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-      <p className="text-sm text-slate-400">{description}</p>
-    </div>
-  );
-}
-
-function PricingCard({ 
-  name, 
-  price, 
-  period, 
-  description, 
-  features, 
-  popular 
-}: { 
-  name: string; 
-  price: string; 
-  period?: string; 
-  description: string; 
-  features: string[]; 
-  popular?: boolean;
-}) {
-  return (
-    <div className={`glass-card p-6 relative ${popular ? 'ring-2 ring-emerald-500' : ''}`}>
-      {popular && (
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-emerald-500 text-white text-xs font-medium">
-          Most Popular
-        </div>
-      )}
-      <div className="text-center mb-6">
-        <h3 className="text-xl font-bold text-white mb-2">{name}</h3>
-        <div className="flex items-baseline justify-center gap-1">
-          <span className="text-4xl font-bold text-white">{price}</span>
-          {period && <span className="text-slate-400">{period}</span>}
-        </div>
-        <p className="text-sm text-slate-400 mt-2">{description}</p>
-      </div>
-      <ul className="space-y-3 mb-6">
-        {features.map((feature, idx) => (
-          <li key={idx} className="flex items-center gap-3 text-sm">
-            <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-            <span className="text-slate-300">{feature}</span>
-          </li>
-        ))}
-      </ul>
-      <button className={`w-full py-3 rounded-xl font-medium transition-all ${
-        popular 
-          ? 'bg-emerald-500 text-white hover:bg-emerald-400' 
-          : 'bg-white/5 text-white hover:bg-white/10 border border-white/10'
-      }`}>
-        {price === 'Free' ? 'Get Started Free' : price === 'Custom' ? 'Contact Sales' : 'Start Free Trial'}
-      </button>
-    </div>
-  );
-}
-
-function ResultCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center">
-      <div className="text-lg font-bold text-white">{value}</div>
-      <div className="text-xs text-slate-400">{label}</div>
+    <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+      {icon}
+      <h4 className="text-lg font-medium text-slate-300 mt-4">{title}</h4>
+      <p className="text-sm">{description}</p>
     </div>
   );
 }

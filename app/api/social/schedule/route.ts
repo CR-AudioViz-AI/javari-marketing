@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -14,43 +13,57 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || 'pending';
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    const { data: scheduledPosts, error } = await supabase
+    // Fetch queue items
+    const { data: queueItems, error: queueError } = await supabase
       .from('social_queue')
-      .select(`
-        id,
-        scheduled_for,
-        status,
-        attempts,
-        last_attempt_at,
-        error_log,
-        created_at,
-        post:social_posts(
-          id,
-          content,
-          link_url,
-          hashtags,
-          media_urls
-        ),
-        account:social_accounts(
-          id,
-          username,
-          display_name,
-          platform:social_platforms(name, display_name, icon)
-        )
-      `)
+      .select('*')
       .eq('status', status)
       .order('scheduled_for', { ascending: true })
       .limit(limit);
 
-    if (error) {
-      console.error('Error fetching scheduled posts:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch scheduled posts' },
-        { status: 500 }
-      );
+    if (queueError) {
+      console.error('Error fetching queue:', queueError);
+      return NextResponse.json({ error: 'Failed to fetch scheduled posts' }, { status: 500 });
     }
 
-    // Transform and group by post
+    // Get unique post IDs and account IDs
+    const postIds = [...new Set((queueItems || []).map((q: Record<string, unknown>) => q.post_id))];
+    const accountIds = [...new Set((queueItems || []).map((q: Record<string, unknown>) => q.account_id))];
+
+    // Fetch posts
+    const { data: posts } = await supabase
+      .from('social_posts')
+      .select('*')
+      .in('id', postIds.length > 0 ? postIds : ['00000000-0000-0000-0000-000000000000']);
+
+    // Fetch accounts  
+    const { data: accounts } = await supabase
+      .from('social_accounts')
+      .select('*')
+      .in('id', accountIds.length > 0 ? accountIds : ['00000000-0000-0000-0000-000000000000']);
+
+    // Fetch platforms
+    const { data: platforms } = await supabase
+      .from('social_platforms')
+      .select('*');
+
+    // Create lookup maps
+    const postMap = new Map();
+    for (const p of posts || []) {
+      postMap.set(p.id, p);
+    }
+
+    const accountMap = new Map();
+    for (const a of accounts || []) {
+      accountMap.set(a.id, a);
+    }
+
+    const platformMap = new Map();
+    for (const p of platforms || []) {
+      platformMap.set(p.id, p);
+    }
+
+    // Group by post
     const groupedPosts = new Map<string, {
       id: string;
       content: string;
@@ -61,31 +74,35 @@ export async function GET(request: NextRequest) {
       media?: string[];
     }>();
 
-    for (const item of scheduledPosts || []) {
-      const postId = item.post?.id;
-      if (!postId) continue;
+    for (const item of queueItems || []) {
+      const post = postMap.get(item.post_id);
+      const account = accountMap.get(item.account_id);
+      const platform = account ? platformMap.get(account.platform_id) : null;
 
+      if (!post) continue;
+
+      const postId = post.id as string;
       if (!groupedPosts.has(postId)) {
         groupedPosts.set(postId, {
           id: postId,
-          content: item.post?.content || '',
-          scheduledFor: item.scheduled_for,
-          status: item.status,
+          content: post.content || '',
+          scheduledFor: item.scheduled_for as string,
+          status: item.status as string,
           platforms: [],
           accounts: [],
-          media: item.post?.media_urls,
+          media: post.media_urls,
         });
       }
 
       const group = groupedPosts.get(postId)!;
-      const platform = item.account?.platform?.name;
-      if (platform && !group.platforms.includes(platform)) {
-        group.platforms.push(platform);
+      const platformName = platform?.name || 'unknown';
+      if (!group.platforms.includes(platformName)) {
+        group.platforms.push(platformName);
       }
       group.accounts.push({
-        id: item.account?.id,
-        platform: platform || 'unknown',
-        username: item.account?.username || '',
+        id: account?.id || '',
+        platform: platformName,
+        username: account?.username || '',
       });
     }
 
@@ -95,10 +112,7 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Error in GET /api/social/schedule:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -115,7 +129,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate scheduled time is in the future
     const scheduledDate = new Date(scheduledFor);
     if (scheduledDate <= new Date()) {
       return NextResponse.json(
@@ -140,10 +153,7 @@ export async function POST(request: NextRequest) {
 
     if (postError) {
       console.error('Error creating post:', postError);
-      return NextResponse.json(
-        { error: 'Failed to create post' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
     }
 
     // Create queue entries for each account
@@ -160,12 +170,8 @@ export async function POST(request: NextRequest) {
 
     if (queueError) {
       console.error('Error creating queue entries:', queueError);
-      // Rollback post creation
       await supabase.from('social_posts').delete().eq('id', post.id);
-      return NextResponse.json(
-        { error: 'Failed to schedule post' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to schedule post' }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -177,10 +183,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error in POST /api/social/schedule:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -191,10 +194,7 @@ export async function PATCH(request: NextRequest) {
     const { postId, content, scheduledFor, linkUrl, hashtags } = body;
 
     if (!postId) {
-      return NextResponse.json(
-        { error: 'Post ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
 
     const updates: Record<string, unknown> = {};
@@ -203,7 +203,6 @@ export async function PATCH(request: NextRequest) {
     if (linkUrl !== undefined) updates.link_url = linkUrl;
     if (hashtags) updates.hashtags = hashtags;
 
-    // Update the post
     const { data: post, error: postError } = await supabase
       .from('social_posts')
       .update(updates)
@@ -213,13 +212,9 @@ export async function PATCH(request: NextRequest) {
 
     if (postError) {
       console.error('Error updating post:', postError);
-      return NextResponse.json(
-        { error: 'Failed to update post' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to update post' }, { status: 500 });
     }
 
-    // Update queue entries if scheduled time changed
     if (scheduledFor) {
       await supabase
         .from('social_queue')
@@ -232,10 +227,7 @@ export async function PATCH(request: NextRequest) {
 
   } catch (error) {
     console.error('Error in PATCH /api/social/schedule:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -246,23 +238,11 @@ export async function DELETE(request: NextRequest) {
     const postId = searchParams.get('id');
 
     if (!postId) {
-      return NextResponse.json(
-        { error: 'Post ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Post ID is required' }, { status: 400 });
     }
 
-    // Delete queue entries
-    const { error: queueError } = await supabase
-      .from('social_queue')
-      .delete()
-      .eq('post_id', postId);
-
-    if (queueError) {
-      console.error('Error deleting queue entries:', queueError);
-    }
-
-    // Delete the post
+    await supabase.from('social_queue').delete().eq('post_id', postId);
+    
     const { error: postError } = await supabase
       .from('social_posts')
       .delete()
@@ -270,19 +250,13 @@ export async function DELETE(request: NextRequest) {
 
     if (postError) {
       console.error('Error deleting post:', postError);
-      return NextResponse.json(
-        { error: 'Failed to delete post' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to delete post' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
 
   } catch (error) {
     console.error('Error in DELETE /api/social/schedule:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

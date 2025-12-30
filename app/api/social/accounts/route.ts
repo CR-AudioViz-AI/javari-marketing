@@ -7,14 +7,38 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
+// Type definitions
+interface PlatformData {
+  id: string;
+  name: string;
+  display_name: string;
+  icon: string;
+  category: string;
+  api_type: string;
+  character_limit: number | null;
+  is_free_tier: boolean;
+}
+
+interface AccountWithPlatform {
+  id: string;
+  platform_user_id: string | null;
+  username: string | null;
+  display_name: string | null;
+  profile_image_url: string | null;
+  is_active: boolean;
+  last_sync_at: string | null;
+  created_at: string;
+  platform: PlatformData | null;
+}
+
 // GET - Fetch all connected accounts
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const platform = searchParams.get('platform');
+    const platformName = searchParams.get('platform');
     const activeOnly = searchParams.get('active') !== 'false';
 
-    let query = supabase
+    const { data: accounts, error } = await supabase
       .from('social_accounts')
       .select(`
         id,
@@ -25,7 +49,7 @@ export async function GET(request: NextRequest) {
         is_active,
         last_sync_at,
         created_at,
-        platform:social_platforms(
+        platform:social_platforms!inner(
           id,
           name,
           display_name,
@@ -38,16 +62,6 @@ export async function GET(request: NextRequest) {
       `)
       .order('created_at', { ascending: false });
 
-    if (activeOnly) {
-      query = query.eq('is_active', true);
-    }
-
-    if (platform) {
-      query = query.eq('platform.name', platform);
-    }
-
-    const { data: accounts, error } = await query;
-
     if (error) {
       console.error('Error fetching accounts:', error);
       return NextResponse.json(
@@ -56,8 +70,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Transform to cleaner format
-    const transformedAccounts = (accounts || []).map(account => ({
+    // Filter and transform
+    let filteredAccounts = (accounts || []) as AccountWithPlatform[];
+    
+    if (activeOnly) {
+      filteredAccounts = filteredAccounts.filter(a => a.is_active);
+    }
+    
+    if (platformName) {
+      filteredAccounts = filteredAccounts.filter(a => a.platform?.name === platformName);
+    }
+
+    const transformedAccounts = filteredAccounts.map(account => ({
       id: account.id,
       platform: account.platform?.name || 'unknown',
       platformDisplayName: account.platform?.display_name,
@@ -71,7 +95,7 @@ export async function GET(request: NextRequest) {
       apiType: account.platform?.api_type,
       lastSync: account.last_sync_at,
       createdAt: account.created_at,
-      followers: 0, // Would come from analytics
+      followers: 0,
     }));
 
     return NextResponse.json({ accounts: transformedAccounts });
@@ -130,7 +154,7 @@ export async function POST(request: NextRequest) {
       .from('social_accounts')
       .upsert({
         platform_id: platform.id,
-        platform_user_id: platformUserId,
+        platform_user_id: platformUserId || 'default',
         username,
         display_name: displayName,
         profile_image_url: profileImageUrl,
@@ -189,7 +213,6 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Map camelCase to snake_case
     const dbUpdates: Record<string, unknown> = {};
     if (updates.accessToken) dbUpdates.access_token = updates.accessToken;
     if (updates.refreshToken) dbUpdates.refresh_token = updates.refreshToken;

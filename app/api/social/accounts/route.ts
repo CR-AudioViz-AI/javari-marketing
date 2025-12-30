@@ -1,111 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-// Type definitions
-interface PlatformData {
-  id: string;
-  name: string;
-  display_name: string;
-  icon: string;
-  category: string;
-  api_type: string;
-  character_limit: number | null;
-  is_free_tier: boolean;
-}
-
-interface AccountWithPlatform {
-  id: string;
-  platform_user_id: string | null;
-  username: string | null;
-  display_name: string | null;
-  profile_image_url: string | null;
-  is_active: boolean;
-  last_sync_at: string | null;
-  created_at: string;
-  platform: PlatformData | null;
-}
-
 // GET - Fetch all connected accounts
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const platformName = searchParams.get('platform');
     const activeOnly = searchParams.get('active') !== 'false';
 
-    const { data: accounts, error } = await supabase
+    // Fetch accounts
+    const { data: accounts, error: accountsError } = await supabase
       .from('social_accounts')
-      .select(`
-        id,
-        platform_user_id,
-        username,
-        display_name,
-        profile_image_url,
-        is_active,
-        last_sync_at,
-        created_at,
-        platform:social_platforms!inner(
-          id,
-          name,
-          display_name,
-          icon,
-          category,
-          api_type,
-          character_limit,
-          is_free_tier
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching accounts:', error);
-      return NextResponse.json(
-        { error: 'Failed to fetch accounts' },
-        { status: 500 }
-      );
+    if (accountsError) {
+      console.error('Error fetching accounts:', accountsError);
+      return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 });
     }
 
-    // Filter and transform
-    let filteredAccounts = (accounts || []) as AccountWithPlatform[];
-    
+    // Fetch platforms separately
+    const { data: platforms, error: platformsError } = await supabase
+      .from('social_platforms')
+      .select('*');
+
+    if (platformsError) {
+      console.error('Error fetching platforms:', platformsError);
+    }
+
+    // Create platform lookup map
+    const platformMap = new Map();
+    if (platforms) {
+      for (const p of platforms) {
+        platformMap.set(p.id, p);
+      }
+    }
+
+    // Transform accounts with platform data
+    let result = (accounts || []).map((account: Record<string, unknown>) => {
+      const platform = platformMap.get(account.platform_id) || {};
+      return {
+        id: account.id,
+        platform: platform.name || 'unknown',
+        platformDisplayName: platform.display_name,
+        username: account.username,
+        displayName: account.display_name,
+        profileImage: account.profile_image_url,
+        isActive: account.is_active,
+        isFreeTier: platform.is_free_tier,
+        characterLimit: platform.character_limit,
+        category: platform.category,
+        apiType: platform.api_type,
+        lastSync: account.last_sync_at,
+        createdAt: account.created_at,
+        followers: 0,
+      };
+    });
+
     if (activeOnly) {
-      filteredAccounts = filteredAccounts.filter(a => a.is_active);
-    }
-    
-    if (platformName) {
-      filteredAccounts = filteredAccounts.filter(a => a.platform?.name === platformName);
+      result = result.filter((a: Record<string, unknown>) => a.isActive);
     }
 
-    const transformedAccounts = filteredAccounts.map(account => ({
-      id: account.id,
-      platform: account.platform?.name || 'unknown',
-      platformDisplayName: account.platform?.display_name,
-      username: account.username,
-      displayName: account.display_name,
-      profileImage: account.profile_image_url,
-      isActive: account.is_active,
-      isFreeTier: account.platform?.is_free_tier,
-      characterLimit: account.platform?.character_limit,
-      category: account.platform?.category,
-      apiType: account.platform?.api_type,
-      lastSync: account.last_sync_at,
-      createdAt: account.created_at,
-      followers: 0,
-    }));
-
-    return NextResponse.json({ accounts: transformedAccounts });
+    return NextResponse.json({ accounts: result });
 
   } catch (error) {
     console.error('Error in GET /api/social/accounts:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -129,10 +93,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     if (!platformName) {
-      return NextResponse.json(
-        { error: 'Platform name is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Platform name is required' }, { status: 400 });
     }
 
     // Get platform ID
@@ -143,18 +104,15 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (platformError || !platform) {
-      return NextResponse.json(
-        { error: 'Platform not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Platform not found' }, { status: 404 });
     }
 
-    // Create or update the account
+    // Create the account
     const { data: account, error: accountError } = await supabase
       .from('social_accounts')
-      .upsert({
+      .insert({
         platform_id: platform.id,
-        platform_user_id: platformUserId || 'default',
+        platform_user_id: platformUserId || `default_${Date.now()}`,
         username,
         display_name: displayName,
         profile_image_url: profileImageUrl,
@@ -167,18 +125,13 @@ export async function POST(request: NextRequest) {
         metadata: metadata || {},
         is_active: true,
         last_sync_at: new Date().toISOString(),
-      }, {
-        onConflict: 'platform_id,platform_user_id',
       })
       .select()
       .single();
 
     if (accountError) {
       console.error('Error creating account:', accountError);
-      return NextResponse.json(
-        { error: 'Failed to create account' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to create account' }, { status: 500 });
     }
 
     return NextResponse.json({
@@ -193,10 +146,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Error in POST /api/social/accounts:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -207,10 +157,7 @@ export async function PATCH(request: NextRequest) {
     const { id, ...updates } = body;
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'Account ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });
     }
 
     const dbUpdates: Record<string, unknown> = {};
@@ -231,20 +178,14 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       console.error('Error updating account:', error);
-      return NextResponse.json(
-        { error: 'Failed to update account' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to update account' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, account });
 
   } catch (error) {
     console.error('Error in PATCH /api/social/accounts:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
@@ -255,10 +196,7 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'Account ID is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });
     }
 
     const { error } = await supabase
@@ -268,19 +206,13 @@ export async function DELETE(request: NextRequest) {
 
     if (error) {
       console.error('Error deleting account:', error);
-      return NextResponse.json(
-        { error: 'Failed to delete account' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Failed to delete account' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
 
   } catch (error) {
     console.error('Error in DELETE /api/social/accounts:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

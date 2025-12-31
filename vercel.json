@@ -5,8 +5,16 @@
   },
   "crons": [
     {
-      "path": "/api/admin/scheduler?secret=cr-cron-2025",
+      "path": "/api/javari-social/cron?secret=cr-javari-cron-2025",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/javari-social/cron",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/javari-social/cron",
+      "schedule": "0 6 * * *"
     }
   ]
 }

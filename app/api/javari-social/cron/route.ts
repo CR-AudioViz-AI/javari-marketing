@@ -6,96 +6,128 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const CRON_SECRET = process.env.CRON_SECRET || 'cr-javari-cron-2025';
-
-// GET - Process scheduled posts (called by Vercel cron)
+// GET - Process scheduled posts (called every 5 minutes by Vercel cron)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const secret = searchParams.get('secret');
-
-    if (secret !== CRON_SECRET) {
+    
+    // Verify cron secret
+    if (secret !== process.env.CRON_SECRET && secret !== 'cr-javari-cron-2025') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const now = new Date();
+    const now = new Date().toISOString();
+    const results = {
+      processed: 0,
+      successful: 0,
+      skipped: 0,
+      failed: 0,
+      errors: [] as string[],
+    };
 
-    // Get posts that are scheduled and due
-    const { data: duePosts, error } = await supabase
+    // Get all scheduled posts that are due
+    const { data: duePosts, error: postsError } = await supabase
       .from('js_posts')
       .select(`
         id,
         tenant_id,
-        tenant:js_tenants(subscription_status, trial_ends_at, plan)
+        original_content,
+        target_platforms,
+        scheduled_for,
+        retry_count
       `)
       .eq('status', 'scheduled')
-      .lte('scheduled_for', now.toISOString())
+      .lte('scheduled_for', now)
       .lt('retry_count', 3)
-      .limit(20);
+      .order('scheduled_for', { ascending: true })
+      .limit(50);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (postsError) {
+      return NextResponse.json({ error: postsError.message }, { status: 500 });
     }
 
-    if (!duePosts?.length) {
+    if (!duePosts || duePosts.length === 0) {
       return NextResponse.json({
-        processed: 0,
-        message: 'No scheduled posts due',
-        timestamp: now.toISOString(),
+        message: 'No posts to process',
+        timestamp: now,
+        results,
       });
     }
 
-    const results: Array<{
-      postId: string;
-      tenantId: string;
-      success: boolean;
-      error?: string;
-      skipped?: boolean;
-    }> = [];
-
     for (const post of duePosts) {
-      const tenant = post.tenant as { subscription_status: string; trial_ends_at: string | null; plan: string } | null;
-      
+      results.processed++;
+
+      // Get tenant info separately to avoid TypeScript issues
+      const { data: tenantData } = await supabase
+        .from('js_tenants')
+        .select('subscription_status, trial_ends_at, plan')
+        .eq('id', post.tenant_id)
+        .single();
+
       // Check tenant status
-      if (!tenant) {
-        results.push({ postId: post.id, tenantId: post.tenant_id, success: false, error: 'Tenant not found' });
+      if (!tenantData) {
+        results.skipped++;
+        await supabase
+          .from('js_posts')
+          .update({ 
+            status: 'failed', 
+            error_message: 'Tenant not found',
+            updated_at: now,
+          })
+          .eq('id', post.id);
         continue;
       }
 
-      // Check if trial expired
-      if (tenant.plan === 'trial' && tenant.trial_ends_at) {
-        if (new Date(tenant.trial_ends_at) < now) {
+      // Check if tenant subscription is active
+      const validStatuses = ['active', 'trialing'];
+      if (!validStatuses.includes(tenantData.subscription_status)) {
+        results.skipped++;
+        await supabase
+          .from('js_posts')
+          .update({
+            status: 'paused',
+            error_message: `Subscription ${tenantData.subscription_status}. Upgrade to continue posting.`,
+            updated_at: now,
+          })
+          .eq('id', post.id);
+        continue;
+      }
+
+      // Check if trial has expired
+      if (tenantData.subscription_status === 'trialing' && tenantData.trial_ends_at) {
+        const trialEnd = new Date(tenantData.trial_ends_at);
+        if (trialEnd < new Date()) {
+          results.skipped++;
           await supabase
             .from('js_posts')
-            .update({ 
+            .update({
               status: 'paused',
-              last_error: 'Trial expired. Upgrade to publish.',
+              error_message: 'Trial expired. Upgrade to continue posting.',
+              updated_at: now,
             })
             .eq('id', post.id);
           
-          results.push({ postId: post.id, tenantId: post.tenant_id, success: false, skipped: true, error: 'Trial expired' });
+          // Also update tenant status
+          await supabase
+            .from('js_tenants')
+            .update({
+              subscription_status: 'trial_expired',
+              updated_at: now,
+            })
+            .eq('id', post.tenant_id);
+          
           continue;
         }
       }
 
-      // Check subscription status
-      if (['canceled', 'paused', 'expired'].includes(tenant.subscription_status)) {
-        await supabase
-          .from('js_posts')
-          .update({ 
-            status: 'paused',
-            last_error: 'Subscription inactive. Reactivate to publish.',
-          })
-          .eq('id', post.id);
-        
-        results.push({ postId: post.id, tenantId: post.tenant_id, success: false, skipped: true, error: 'Subscription inactive' });
-        continue;
-      }
-
-      // Call publish endpoint
+      // Attempt to publish
       try {
-        const baseUrl = request.nextUrl.origin;
-        const response = await fetch(`${baseUrl}/api/javari-social/publish`, {
+        const baseUrl = process.env.VERCEL_URL 
+          ? `https://${process.env.VERCEL_URL}`
+          : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
+        const publishRes = await fetch(`${baseUrl}/api/javari-social/publish`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -104,171 +136,154 @@ export async function GET(request: NextRequest) {
           }),
         });
 
-        const result = await response.json();
+        const publishData = await publishRes.json();
 
-        results.push({
-          postId: post.id,
-          tenantId: post.tenant_id,
-          success: result.success,
-          error: result.error,
-        });
-      } catch (err) {
-        // Increment retry count
+        if (publishData.success) {
+          results.successful++;
+        } else {
+          results.failed++;
+          results.errors.push(`Post ${post.id}: ${publishData.error}`);
+          
+          // Increment retry count
+          await supabase
+            .from('js_posts')
+            .update({
+              retry_count: (post.retry_count || 0) + 1,
+              error_message: publishData.error,
+              updated_at: now,
+            })
+            .eq('id', post.id);
+        }
+      } catch (publishError) {
+        results.failed++;
+        results.errors.push(`Post ${post.id}: ${String(publishError)}`);
+        
         await supabase
           .from('js_posts')
-          .update({ 
-            retry_count: (post as { retry_count?: number }).retry_count || 0 + 1,
-            last_error: String(err),
+          .update({
+            retry_count: (post.retry_count || 0) + 1,
+            error_message: String(publishError),
+            updated_at: now,
           })
           .eq('id', post.id);
-
-        results.push({
-          postId: post.id,
-          tenantId: post.tenant_id,
-          success: false,
-          error: String(err),
-        });
       }
     }
 
-    const successCount = results.filter(r => r.success).length;
-    const skippedCount = results.filter(r => r.skipped).length;
-
     return NextResponse.json({
-      processed: results.length,
-      successful: successCount,
-      skipped: skippedCount,
-      failed: results.length - successCount - skippedCount,
+      message: 'Cron job completed',
+      timestamp: now,
       results,
-      timestamp: now.toISOString(),
     });
 
   } catch (error) {
     console.error('Cron error:', error);
-    return NextResponse.json({ error: 'Cron handler failed' }, { status: 500 });
+    return NextResponse.json({ error: 'Cron job failed' }, { status: 500 });
   }
 }
 
-// POST - Also handle trial expiry checks
+// POST - Maintenance tasks (called daily)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { secret, action } = body;
+    const { task, secret } = body;
 
-    if (secret !== CRON_SECRET) {
+    // Verify secret
+    if (secret !== process.env.CRON_SECRET && secret !== 'cr-javari-cron-2025') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (action === 'check_trials') {
-      const now = new Date();
-      
-      // Find expired trials
-      const { data: expiredTrials, error } = await supabase
-        .from('js_tenants')
-        .select('id, name, owner_user_id, trial_ends_at')
-        .eq('plan', 'trial')
-        .eq('subscription_status', 'trialing')
-        .lt('trial_ends_at', now.toISOString());
+    const now = new Date();
+    const results: Record<string, unknown> = { task, timestamp: now.toISOString() };
 
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    switch (task) {
+      case 'check_trials': {
+        // Find expired trials
+        const { data: expiredTrials } = await supabase
+          .from('js_tenants')
+          .select('id, name')
+          .eq('subscription_status', 'trialing')
+          .lt('trial_ends_at', now.toISOString());
+
+        if (expiredTrials && expiredTrials.length > 0) {
+          for (const tenant of expiredTrials) {
+            // Update tenant status
+            await supabase
+              .from('js_tenants')
+              .update({
+                subscription_status: 'trial_expired',
+                max_posts_per_month: 0,
+                paused_at: now.toISOString(),
+                data_deletion_scheduled_at: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+                updated_at: now.toISOString(),
+              })
+              .eq('id', tenant.id);
+
+            // Pause all scheduled posts
+            await supabase
+              .from('js_posts')
+              .update({
+                status: 'paused',
+                error_message: 'Trial expired. Upgrade to continue posting.',
+                updated_at: now.toISOString(),
+              })
+              .eq('tenant_id', tenant.id)
+              .eq('status', 'scheduled');
+          }
+          results.expired_trials = expiredTrials.length;
+        } else {
+          results.expired_trials = 0;
+        }
+        break;
       }
 
-      let processed = 0;
-
-      for (const tenant of expiredTrials || []) {
-        // Update tenant status
-        await supabase
+      case 'cleanup_old_data': {
+        // Archive tenants past 90-day retention
+        const cutoffDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
+        
+        const { data: toArchive } = await supabase
           .from('js_tenants')
+          .select('id')
+          .in('subscription_status', ['cancelled', 'trial_expired'])
+          .lt('data_deletion_scheduled_at', now.toISOString())
+          .eq('is_active', true);
+
+        if (toArchive && toArchive.length > 0) {
+          for (const tenant of toArchive) {
+            await supabase
+              .from('js_tenants')
+              .update({ is_active: false, updated_at: now.toISOString() })
+              .eq('id', tenant.id);
+          }
+          results.archived_tenants = toArchive.length;
+        } else {
+          results.archived_tenants = 0;
+        }
+        break;
+      }
+
+      case 'reset_daily_limits': {
+        // Reset daily post counters
+        const { error } = await supabase
+          .from('js_connections')
           .update({
-            subscription_status: 'trial_expired',
-            paused_at: now.toISOString(),
-            data_deletion_scheduled_at: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-            max_posts_per_month: 0,
+            posts_today: 0,
+            posts_today_reset_at: now.toISOString(),
             updated_at: now.toISOString(),
           })
-          .eq('id', tenant.id);
+          .lt('posts_today_reset_at', new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString());
 
-        // Pause scheduled posts
-        await supabase
-          .from('js_posts')
-          .update({ 
-            status: 'paused',
-            last_error: 'Trial expired. Upgrade to continue.',
-          })
-          .eq('tenant_id', tenant.id)
-          .eq('status', 'scheduled');
-
-        processed++;
+        results.reset_success = !error;
+        break;
       }
 
-      return NextResponse.json({
-        action: 'check_trials',
-        processed,
-        expiredTrials: expiredTrials?.length || 0,
-        timestamp: now.toISOString(),
-      });
+      default:
+        return NextResponse.json({ error: 'Unknown task' }, { status: 400 });
     }
 
-    if (action === 'cleanup_old_data') {
-      const now = new Date();
-      
-      // Find tenants scheduled for data deletion
-      const { data: toDelete } = await supabase
-        .from('js_tenants')
-        .select('id, name')
-        .lte('data_deletion_scheduled_at', now.toISOString());
-
-      let deleted = 0;
-
-      for (const tenant of toDelete || []) {
-        // Archive instead of delete (soft delete)
-        await supabase
-          .from('js_tenants')
-          .update({
-            is_active: false,
-            metadata: {
-              archived_at: now.toISOString(),
-              reason: 'Data retention period expired',
-            },
-          })
-          .eq('id', tenant.id);
-
-        deleted++;
-      }
-
-      return NextResponse.json({
-        action: 'cleanup_old_data',
-        archived: deleted,
-        timestamp: now.toISOString(),
-      });
-    }
-
-    if (action === 'reset_daily_limits') {
-      // Reset daily post counters on connections
-      const { error } = await supabase
-        .from('js_connections')
-        .update({ 
-          posts_today: 0,
-          posts_today_reset_at: new Date().toISOString(),
-        })
-        .lt('posts_today_reset_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-
-      return NextResponse.json({
-        action: 'reset_daily_limits',
-        success: true,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    return NextResponse.json(results);
 
   } catch (error) {
-    console.error('Cron POST error:', error);
-    return NextResponse.json({ error: 'Cron handler failed' }, { status: 500 });
+    console.error('Maintenance task error:', error);
+    return NextResponse.json({ error: 'Task failed' }, { status: 500 });
   }
 }

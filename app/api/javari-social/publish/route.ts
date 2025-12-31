@@ -264,6 +264,7 @@ async function publishToMastodon(content: string, credentials: { instance_url: s
 export async function POST(request: NextRequest) {
   let transactionId: string | undefined;
   let userId: string | undefined;
+  let isOwnerBypass = false;
   
   try {
     const body = await request.json();
@@ -273,14 +274,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'postId and tenantId required' }, { status: 400 });
     }
 
-    // Get tenant to find user
+    // Get tenant to find user and check owner bypass
     const { data: tenant } = await supabase
       .from('js_tenants')
-      .select('user_id')
+      .select('user_id, is_owner_bypass')
       .eq('id', tenantId)
       .single();
     
     userId = tenant?.user_id;
+    isOwnerBypass = tenant?.is_owner_bypass === true;
 
     // Get post
     const { data: post, error: postError } = await supabase
@@ -302,8 +304,8 @@ export async function POST(request: NextRequest) {
     const platformCount = post.target_platforms?.length || 1;
     const creditAction = platformCount >= 3 ? 'social_post_multi' : 'social_post_basic';
     
-    // Check and deduct credits if user exists
-    if (userId) {
+    // Check and deduct credits if user exists (skip for owners)
+    if (userId && !isOwnerBypass) {
       const creditCheck = await checkCredits(userId, creditAction);
       
       if (!creditCheck.sufficient) {
@@ -353,7 +355,7 @@ export async function POST(request: NextRequest) {
 
     if (!connections?.length) {
       // Refund credits since no connections exist
-      if (userId && transactionId) {
+      if (userId && !isOwnerBypass && transactionId) {
         const cost = creditAction === 'social_post_multi' ? 2 : 1;
         await refundCredits(userId, cost, 'No active connections for publishing', transactionId);
       }
@@ -446,7 +448,7 @@ export async function POST(request: NextRequest) {
     const partialSuccess = successCount > 0 && successCount < totalCount;
     
     // If all failed, refund credits
-    if (allFailed && userId && transactionId) {
+    if (allFailed && userId && !isOwnerBypass && transactionId) {
       const cost = creditAction === 'social_post_multi' ? 2 : 1;
       await refundCredits(userId, cost, 'All publishing attempts failed', transactionId);
     }
@@ -489,7 +491,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Publish error:', error);
     
-    // Attempt to refund on unexpected errors
+    // Attempt to refund on unexpected errors (only if credits were charged)
     if (userId && transactionId) {
       await refundCredits(userId, 2, 'Unexpected error during publishing', transactionId);
     }

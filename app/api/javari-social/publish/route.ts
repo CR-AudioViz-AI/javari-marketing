@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { checkCredits, deductCredits, refundCredits } from '@/lib/credits';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -51,12 +52,20 @@ async function publishToDiscord(content: string, credentials: { webhook_url: str
   }
 }
 
-async function publishToSlack(content: string, credentials: { webhook_url: string }): Promise<PublishResult> {
+async function publishToSlack(content: string, credentials: { webhook_url: string }, mediaUrls?: string[]): Promise<PublishResult> {
   try {
+    const blocks: Array<{ type: string; text?: { type: string; text: string }; image_url?: string; alt_text?: string }> = [
+      { type: 'section', text: { type: 'mrkdwn', text: content } }
+    ];
+    
+    if (mediaUrls?.length) {
+      blocks.push({ type: 'image', image_url: mediaUrls[0], alt_text: 'Post image' });
+    }
+    
     const response = await fetch(credentials.webhook_url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: content }),
+      body: JSON.stringify({ blocks }),
     });
     
     return { 
@@ -69,11 +78,30 @@ async function publishToSlack(content: string, credentials: { webhook_url: strin
   }
 }
 
-async function publishToTelegram(content: string, credentials: { bot_token: string; chat_id: string }): Promise<PublishResult> {
+async function publishToTelegram(content: string, credentials: { bot_token: string; chat_id: string }, mediaUrls?: string[]): Promise<PublishResult> {
   try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${credentials.bot_token}/sendMessage`,
-      {
+    const baseUrl = `https://api.telegram.org/bot${credentials.bot_token}`;
+    
+    if (mediaUrls?.length) {
+      const response = await fetch(`${baseUrl}/sendPhoto`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: credentials.chat_id,
+          photo: mediaUrls[0],
+          caption: content,
+          parse_mode: 'HTML',
+        }),
+      });
+      const data = await response.json();
+      return { 
+        platform: 'telegram', 
+        success: data.ok, 
+        platformPostId: data.result?.message_id?.toString(),
+        error: data.ok ? undefined : data.description 
+      };
+    } else {
+      const response = await fetch(`${baseUrl}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -81,38 +109,76 @@ async function publishToTelegram(content: string, credentials: { bot_token: stri
           text: content,
           parse_mode: 'HTML',
         }),
-      }
-    );
-    
-    const data = await response.json();
-    return { 
-      platform: 'telegram', 
-      success: data.ok,
-      platformPostId: data.result?.message_id?.toString(),
-      error: data.ok ? undefined : data.description,
-    };
+      });
+      const data = await response.json();
+      return { 
+        platform: 'telegram', 
+        success: data.ok, 
+        platformPostId: data.result?.message_id?.toString(),
+        error: data.ok ? undefined : data.description 
+      };
+    }
   } catch (error) {
     return { platform: 'telegram', success: false, error: String(error) };
   }
 }
 
-async function publishToBluesky(content: string, credentials: { identifier: string; password: string }): Promise<PublishResult> {
+async function publishToBluesky(content: string, credentials: { identifier: string; app_password: string }, mediaUrls?: string[]): Promise<PublishResult> {
   try {
-    // Login
-    const loginRes = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
+    // Create session
+    const sessionRes = await fetch('https://bsky.social/xrpc/com.atproto.server.createSession', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials),
+      body: JSON.stringify({
+        identifier: credentials.identifier,
+        password: credentials.app_password,
+      }),
     });
     
-    if (!loginRes.ok) {
+    if (!sessionRes.ok) {
       return { platform: 'bluesky', success: false, error: 'Authentication failed' };
     }
     
-    const session = await loginRes.json();
+    const session = await sessionRes.json();
     
-    // Create post (300 char limit)
-    const postContent = content.length > 300 ? content.substring(0, 297) + '...' : content;
+    // Create post
+    const record: {
+      $type: string;
+      text: string;
+      createdAt: string;
+      embed?: { $type: string; images: Array<{ alt: string; image: { $type: string; ref: { $link: string }; mimeType: string; size: number } }> };
+    } = {
+      $type: 'app.bsky.feed.post',
+      text: content.slice(0, 300),
+      createdAt: new Date().toISOString(),
+    };
+    
+    // Handle image upload if present
+    if (mediaUrls?.length) {
+      const imageRes = await fetch(mediaUrls[0]);
+      const imageBlob = await imageRes.blob();
+      const imageBuffer = await imageBlob.arrayBuffer();
+      
+      const uploadRes = await fetch('https://bsky.social/xrpc/com.atproto.repo.uploadBlob', {
+        method: 'POST',
+        headers: {
+          'Content-Type': imageBlob.type,
+          'Authorization': `Bearer ${session.accessJwt}`,
+        },
+        body: imageBuffer,
+      });
+      
+      if (uploadRes.ok) {
+        const uploadData = await uploadRes.json();
+        record.embed = {
+          $type: 'app.bsky.embed.images',
+          images: [{
+            alt: 'Post image',
+            image: uploadData.blob,
+          }],
+        };
+      }
+    }
     
     const postRes = await fetch('https://bsky.social/xrpc/com.atproto.repo.createRecord', {
       method: 'POST',
@@ -123,34 +189,82 @@ async function publishToBluesky(content: string, credentials: { identifier: stri
       body: JSON.stringify({
         repo: session.did,
         collection: 'app.bsky.feed.post',
-        record: {
-          $type: 'app.bsky.feed.post',
-          text: postContent,
-          createdAt: new Date().toISOString(),
-        },
+        record,
       }),
     });
     
     const postData = await postRes.json();
     
-    if (postRes.ok) {
-      const postId = postData.uri.split('/').pop();
-      return { 
-        platform: 'bluesky', 
-        success: true,
-        platformPostId: postId,
-        platformUrl: `https://bsky.app/profile/${session.handle}/post/${postId}`,
-      };
-    }
-    
-    return { platform: 'bluesky', success: false, error: postData.message };
+    return { 
+      platform: 'bluesky', 
+      success: postRes.ok,
+      platformPostId: postData.uri,
+      platformUrl: postData.uri ? `https://bsky.app/profile/${session.handle}/post/${postData.uri.split('/').pop()}` : undefined,
+      error: postRes.ok ? undefined : postData.message,
+    };
   } catch (error) {
     return { platform: 'bluesky', success: false, error: String(error) };
   }
 }
 
-// Main publish endpoint
+async function publishToMastodon(content: string, credentials: { instance_url: string; access_token: string }, mediaUrls?: string[]): Promise<PublishResult> {
+  try {
+    const baseUrl = credentials.instance_url.replace(/\/$/, '');
+    let mediaIds: string[] = [];
+    
+    // Upload media if present
+    if (mediaUrls?.length) {
+      for (const url of mediaUrls.slice(0, 4)) {
+        const imageRes = await fetch(url);
+        const imageBlob = await imageRes.blob();
+        
+        const formData = new FormData();
+        formData.append('file', imageBlob);
+        
+        const uploadRes = await fetch(`${baseUrl}/api/v2/media`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${credentials.access_token}` },
+          body: formData,
+        });
+        
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          mediaIds.push(uploadData.id);
+        }
+      }
+    }
+    
+    // Create status
+    const statusRes = await fetch(`${baseUrl}/api/v1/statuses`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${credentials.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        status: content.slice(0, 500),
+        media_ids: mediaIds.length ? mediaIds : undefined,
+      }),
+    });
+    
+    const statusData = await statusRes.json();
+    
+    return {
+      platform: 'mastodon',
+      success: statusRes.ok,
+      platformPostId: statusData.id,
+      platformUrl: statusData.url,
+      error: statusRes.ok ? undefined : statusData.error,
+    };
+  } catch (error) {
+    return { platform: 'mastodon', success: false, error: String(error) };
+  }
+}
+
 export async function POST(request: NextRequest) {
+  let transactionId: string | undefined;
+  let userId: string | undefined;
+  
   try {
     const body = await request.json();
     const { postId, tenantId } = body;
@@ -158,6 +272,15 @@ export async function POST(request: NextRequest) {
     if (!postId || !tenantId) {
       return NextResponse.json({ error: 'postId and tenantId required' }, { status: 400 });
     }
+
+    // Get tenant to find user
+    const { data: tenant } = await supabase
+      .from('js_tenants')
+      .select('user_id')
+      .eq('id', tenantId)
+      .single();
+    
+    userId = tenant?.user_id;
 
     // Get post
     const { data: post, error: postError } = await supabase
@@ -173,6 +296,36 @@ export async function POST(request: NextRequest) {
 
     if (post.status === 'published') {
       return NextResponse.json({ error: 'Post already published' }, { status: 400 });
+    }
+
+    // Determine credit cost based on platforms
+    const platformCount = post.target_platforms?.length || 1;
+    const creditAction = platformCount >= 3 ? 'social_post_multi' : 'social_post_basic';
+    
+    // Check and deduct credits if user exists
+    if (userId) {
+      const creditCheck = await checkCredits(userId, creditAction);
+      
+      if (!creditCheck.sufficient) {
+        return NextResponse.json({ 
+          error: `Insufficient credits. Required: ${creditCheck.required}, Available: ${creditCheck.balance}`,
+          creditsRequired: creditCheck.required,
+          creditsAvailable: creditCheck.balance,
+        }, { status: 402 }); // 402 Payment Required
+      }
+      
+      // Deduct credits upfront
+      const deduction = await deductCredits(userId, creditAction, {
+        postId,
+        platforms: post.target_platforms,
+        action: 'social_publish',
+      });
+      
+      if (!deduction.success) {
+        return NextResponse.json({ error: deduction.error }, { status: 400 });
+      }
+      
+      transactionId = deduction.transactionId;
     }
 
     // Update status to publishing
@@ -199,6 +352,12 @@ export async function POST(request: NextRequest) {
       );
 
     if (!connections?.length) {
+      // Refund credits since no connections exist
+      if (userId && transactionId) {
+        const cost = creditAction === 'social_post_multi' ? 2 : 1;
+        await refundCredits(userId, cost, 'No active connections for publishing', transactionId);
+      }
+      
       await supabase
         .from('js_posts')
         .update({ status: 'failed', last_error: 'No active connections for target platforms' })
@@ -207,6 +366,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: 'No active connections for target platforms',
         targetPlatforms: post.target_platforms,
+        creditsRefunded: true,
       }, { status: 400 });
     }
 
@@ -233,7 +393,6 @@ export async function POST(request: NextRequest) {
       }
 
       // Check rate limits
-      const now = new Date();
       if (connection.posts_today >= (connection.platform?.rate_limit_per_day || 1000)) {
         results.push({
           platform: platformName,
@@ -251,122 +410,94 @@ export async function POST(request: NextRequest) {
           result = await publishToDiscord(adaptedContent, credentials, post.media_urls);
           break;
         case 'slack':
-          result = await publishToSlack(adaptedContent, credentials);
+          result = await publishToSlack(adaptedContent, credentials, post.media_urls);
           break;
         case 'telegram':
-          result = await publishToTelegram(adaptedContent, credentials);
+          result = await publishToTelegram(adaptedContent, credentials, post.media_urls);
           break;
         case 'bluesky':
-          result = await publishToBluesky(adaptedContent, credentials);
+          result = await publishToBluesky(adaptedContent, credentials, post.media_urls);
+          break;
+        case 'mastodon':
+          result = await publishToMastodon(adaptedContent, credentials, post.media_urls);
           break;
         default:
-          result = { 
-            platform: platformName, 
-            success: false, 
-            error: `Publisher not yet implemented for ${platformName}. Coming soon!` 
-          };
+          result = { platform: platformName, success: false, error: 'Platform not yet supported' };
       }
 
       results.push(result);
 
-      // Save result
-      await supabase.from('js_post_results').insert({
-        post_id: postId,
-        connection_id: connection.id,
-        platform: platformName,
-        status: result.success ? 'success' : 'failed',
-        platform_post_id: result.platformPostId,
-        platform_url: result.platformUrl,
-        content_sent: adaptedContent,
-        character_count: adaptedContent.length,
-        error_message: result.error,
-        posted_at: result.success ? new Date().toISOString() : null,
-      });
-
-      // Update connection rate limit counter
+      // Update connection stats if successful
       if (result.success) {
         await supabase
           .from('js_connections')
           .update({ 
             posts_today: (connection.posts_today || 0) + 1,
-            last_used_at: new Date().toISOString(),
+            last_post_at: new Date().toISOString(),
           })
           .eq('id', connection.id);
       }
     }
 
-    // Update post status
+    // Determine overall status
     const successCount = results.filter(r => r.success).length;
-    const finalStatus = successCount === results.length ? 'published' 
-      : successCount > 0 ? 'partially_published' 
-      : 'failed';
+    const totalCount = results.length;
+    const allFailed = successCount === 0;
+    const partialSuccess = successCount > 0 && successCount < totalCount;
+    
+    // If all failed, refund credits
+    if (allFailed && userId && transactionId) {
+      const cost = creditAction === 'social_post_multi' ? 2 : 1;
+      await refundCredits(userId, cost, 'All publishing attempts failed', transactionId);
+    }
+
+    // Update post status
+    const finalStatus = allFailed ? 'failed' : 'published';
+    const publishResults = results.reduce((acc, r) => {
+      acc[r.platform] = {
+        success: r.success,
+        platformPostId: r.platformPostId,
+        platformUrl: r.platformUrl,
+        error: r.error,
+      };
+      return acc;
+    }, {} as Record<string, unknown>);
 
     await supabase
       .from('js_posts')
       .update({ 
         status: finalStatus,
-        last_error: successCount === 0 ? results[0]?.error : null,
-        updated_at: new Date().toISOString(),
+        published_at: finalStatus === 'published' ? new Date().toISOString() : null,
+        publish_results: publishResults,
+        last_error: allFailed ? results.map(r => `${r.platform}: ${r.error}`).join('; ') : null,
       })
       .eq('id', postId);
 
     return NextResponse.json({
-      success: successCount > 0,
-      summary: {
-        total: results.length,
-        successful: successCount,
-        failed: results.length - successCount,
-      },
+      success: !allFailed,
+      status: finalStatus,
       results,
-      postStatus: finalStatus,
+      summary: {
+        total: totalCount,
+        successful: successCount,
+        failed: totalCount - successCount,
+      },
+      creditsCharged: !allFailed,
+      creditsRefunded: allFailed,
     });
 
   } catch (error) {
     console.error('Publish error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-// GET - Get publish status for a post
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const postId = searchParams.get('postId');
-    const tenantId = searchParams.get('tenantId');
-
-    if (!postId || !tenantId) {
-      return NextResponse.json({ error: 'postId and tenantId required' }, { status: 400 });
+    
+    // Attempt to refund on unexpected errors
+    if (userId && transactionId) {
+      await refundCredits(userId, 2, 'Unexpected error during publishing', transactionId);
     }
-
-    const { data: results, error } = await supabase
-      .from('js_post_results')
-      .select(`
-        *,
-        connection:js_connections(
-          platform_username,
-          platform:js_platforms(name, display_name, icon)
-        )
-      `)
-      .eq('post_id', postId)
-      .order('created_at');
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    const successCount = results?.filter(r => r.status === 'success').length || 0;
-
-    return NextResponse.json({
-      results,
-      summary: {
-        total: results?.length || 0,
-        successful: successCount,
-        failed: (results?.length || 0) - successCount,
-      },
-    });
-
-  } catch (error) {
-    console.error('Get publish status error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    
+    return NextResponse.json({ 
+      error: 'Publishing failed', 
+      details: String(error),
+      creditsRefunded: !!transactionId,
+    }, { status: 500 });
   }
 }

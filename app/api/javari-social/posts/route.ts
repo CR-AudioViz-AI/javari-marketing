@@ -294,14 +294,16 @@ export async function POST(request: NextRequest) {
     const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
 
-    await supabase.rpc('increment_usage', { 
-      p_tenant_id: tenantId, 
-      p_period_start: periodStart,
-      p_period_end: periodEnd,
-      p_field: 'posts_count' 
-    }).catch(() => {
-      // Fallback if RPC doesn't exist
-      supabase.from('js_usage_tracking')
+    try {
+      await supabase.rpc('increment_usage', { 
+        p_tenant_id: tenantId, 
+        p_period_start: periodStart,
+        p_period_end: periodEnd,
+        p_field: 'posts_count' 
+      });
+    } catch {
+      // Fallback if RPC doesn't exist - use upsert instead
+      await supabase.from('js_usage_tracking')
         .upsert({
           tenant_id: tenantId,
           period_start: periodStart,
@@ -309,7 +311,7 @@ export async function POST(request: NextRequest) {
           posts_count: limits.current + 1,
           posts_limit: limits.max,
         }, { onConflict: 'tenant_id,period_start' });
-    });
+    }
 
     return NextResponse.json({
       success: true,

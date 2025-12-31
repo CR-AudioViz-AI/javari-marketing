@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "github": {
+    "autoAlias": false
+  },
+  "crons": [
+    {
+      "path": "/api/admin/scheduler?secret=cr-cron-2025",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

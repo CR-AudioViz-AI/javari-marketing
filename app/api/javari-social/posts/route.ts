@@ -17,6 +17,7 @@ interface Platform {
 }
 
 interface BrandProfile {
+  id?: string;
   hashtags_primary: string[];
   cta_templates: string[];
   footer_template: string;

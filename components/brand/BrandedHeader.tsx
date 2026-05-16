@@ -37,11 +37,11 @@ export function BrandedHeader({ appName, appLogo, quickLinks = [] }: BrandedHead
   const checkAuthStatus = async () => {
     try {
       const session = await CentralServices.Auth.getSession();
-      if (session.success && session.data?.user) {
+      if (session.success && session.data && (session.data as any)?.user) {
         setIsLoggedIn(true);
         setUser({
-          name: session.data.user.user_metadata?.full_name,
-          email: session.data.user.email,
+          name: (session.data as any).user?.user_metadata?.full_name,
+          email: (session.data as any).user?.email,
         });
         
         // Fetch credits

@@ -1,20 +1,6 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "github": {
-    "autoAlias": false
-  },
-  "crons": [
-    {
-      "path": "/api/javari-social/cron?secret=cr-javari-cron-2025",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/javari-social/cron",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/javari-social/cron",
-      "schedule": "0 6 * * *"
-    }
-  ]
+  "installCommand": "npm install --legacy-peer-deps",
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "outputDirectory": ".next"
 }

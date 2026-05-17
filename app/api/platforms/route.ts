@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 // ============================================================================
 // CR AUDIOVIZ AI - PLATFORMS FINDER API
 // GET /api/platforms - Search and filter marketing platforms

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 // ============================================================================
 // CR AUDIOVIZ AI - COMMUNITY GROUPS API
 // Manage Facebook groups, subreddits, Discord servers, LinkedIn groups

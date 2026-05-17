@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 // ============================================================================
 // CR AUDIOVIZ AI - CENSUS DEMOGRAPHICS API
 // GET /api/census - Get demographics by ZIP code (Pro feature)

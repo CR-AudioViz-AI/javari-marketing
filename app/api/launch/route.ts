@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 // ============================================================================
 // CR AUDIOVIZ AI - LAUNCH CHECKLIST API
 // GET /api/launch - Get personalized launch checklist with FREE sites

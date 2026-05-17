@@ -1,5 +1,8 @@
 import { Inter } from 'next/font/google'
 import './globals.css'
+import EcosystemNav from '@/components/ecosystem/EcosystemNav'
+import EcosystemFooter from '@/components/ecosystem/EcosystemFooter'
+
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -16,7 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.className} bg-slate-900 text-white antialiased`}>
-        {children}
+        <EcosystemNav appName="Javari Marketing" />{children}<EcosystemFooter />
       </body>
     </html>
   )

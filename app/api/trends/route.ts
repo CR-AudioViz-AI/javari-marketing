@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 // ============================================================================
 // CR AUDIOVIZ AI - MARKET TRENDS API
 // GET /api/trends - Get market research from Reddit, HN, and News

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 // ============================================================================
 // CR AUDIOVIZ AI - CROSS-SELL API
 // GET /api/cross-sell - Get personalized CRAV product recommendations

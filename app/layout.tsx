@@ -1,25 +1,33 @@
-import { Inter } from 'next/font/google'
+// app/layout.tsx — Javari Marketing
+// Fortune 50 quality — uses AppShell for full ecosystem integration
+// May 17, 2026 — CR AudioViz AI, LLC
+import type { Metadata } from 'next'
 import './globals.css'
-import EcosystemNav from '@/components/ecosystem/EcosystemNav'
-import EcosystemFooter from '@/components/ecosystem/EcosystemFooter'
+export const dynamic = 'force-dynamic'
 
-
-const inter = Inter({ subsets: ['latin'] })
-
-export const metadata = {
-  title: 'Marketing Command Center | CR AudioViz AI',
-  description: 'AI-powered marketing strategy generator with 100+ FREE platforms',
+export const metadata: Metadata = {
+  title: 'Javari Marketing | Javari by CR AudioViz AI',
+  description: 'AI marketing tools for businesses',
+  keywords: 'Javari Marketing, Javari, AI, CR AudioViz AI',
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+import AppShell from '@/components/AppShell'
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.className} bg-slate-900 text-white antialiased`}>
-        <EcosystemNav appName="Javari Marketing" />{children}<EcosystemFooter />
+    <html lang="en">
+      <body style={{ margin: 0, padding: 0 }}>
+        <AppShell
+          appName="Javari Marketing"
+          appColor="#ef4444"
+          appEmoji="📢"
+          appDesc="AI marketing tools for businesses"
+      handoffApp="Javari Social"
+      handoffUrl="https://javarisocial.com"
+      handoffPitch="Generate your social posts with AI →"
+        >
+          {children}
+        </AppShell>
       </body>
     </html>
   )

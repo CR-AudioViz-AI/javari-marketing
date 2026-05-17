@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 // ============================================================================
 // CR AUDIOVIZ AI - STRATEGY GENERATION API
 // POST /api/strategy - Generate AI marketing strategy

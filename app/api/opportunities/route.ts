@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 // ============================================================================
 // CR AUDIOVIZ AI - OPPORTUNITY MONITOR API
 // Scans Reddit, HN for marketing opportunities

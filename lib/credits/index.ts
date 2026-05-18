@@ -1,14 +1,16 @@
 // Universal Credits Integration - CR AudioViz AI
-import { createClient } from '@supabase/supabase-js';
+
+function getSupabase() {
+  var sb = require('@supabase/supabase-js')
+  var url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  var key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  return sb.createClient(url, key, { auth: { persistSession: false } })
+}
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://kteobfyferrukqeolofj.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const supabaseAdmin = SUPABASE_SERVICE_KEY ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY) : null;
-
-export async function checkCredits(userId: string, amount: number): Promise<boolean> {
-  if (!supabaseAdmin) return false;
-  const { data } = await supabaseAdmin.from('user_credits').select('balance').eq('user_id', userId).single();
   return data ? data.balance >= amount : false;
 }
 

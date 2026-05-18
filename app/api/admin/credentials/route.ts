@@ -12,10 +12,6 @@ function getSupabase() {
 }
 
 
-// supabase initialized lazily inside handlers
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 // Admin key for protecting this endpoint
 const ADMIN_KEY = process.env.SOCIAL_ADMIN_KEY || 'cr-social-admin-2025';

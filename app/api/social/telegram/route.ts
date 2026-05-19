@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Telegram bot token is required' },
         { status: 400 }
+      );
     }
 
     if (!chatId) {

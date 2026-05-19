@@ -11,13 +11,6 @@ function getSupabase() {
   return sb.createClient(url, key, { auth: { persistSession: false } })
 }
 
- })
-}
- })
-}
- })
-}
-
   getBalance, 
   getTransactionHistory, 
   checkCredits,

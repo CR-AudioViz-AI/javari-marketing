@@ -17,6 +17,8 @@ import {
   Eye
 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/components/AuthProvider';
+
 
 interface Platform {
   name: string;
@@ -52,6 +54,25 @@ const platformIcons: Record<string, string> = {
 };
 
 export default function ComposePage() {
+  const { user, loading } = useAuth();
+  
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', color: '#9ca3af' }}>
+      <div>Loading...</div>
+    </div>
+  );
+  
+  if (!user) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16 }}>
+      <h2 style={{ color: 'white', fontSize: 24, fontWeight: 700 }}>Sign in to continue</h2>
+      <p style={{ color: '#9ca3af' }}>You need an account to use Compose.</p>
+      <a href="https://craudiovizai.com/auth/signin?redirect=''"
+         style={{ background: 'linear-gradient(135deg,#ef4444,#8b5cf6)', color: 'white', padding: '10px 24px', borderRadius: 8, textDecoration: 'none', fontWeight: 700 }}>
+        Sign In Free
+      </a>
+    </div>
+  );
+
   const [content, setContent] = useState('');
   const [connections, setConnections] = useState<Connection[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);

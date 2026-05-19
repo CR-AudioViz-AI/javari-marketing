@@ -2,6 +2,12 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server';
 import { 
+  getBalance, 
+  getTransactionHistory, 
+  checkCredits,
+  CREDIT_COSTS,
+  type CreditAction 
+} from '@/lib/credits';
 
 function getSupabase() {
   var sb = require('@supabase/supabase-js')
@@ -11,12 +17,6 @@ function getSupabase() {
   return sb.createClient(url, key, { auth: { persistSession: false } })
 }
 
-  getBalance, 
-  getTransactionHistory, 
-  checkCredits,
-  CREDIT_COSTS,
-  type CreditAction 
-} from '@/lib/credits';
 
 // GET - Get user's credit balance and info
 export async function GET(request: NextRequest) {

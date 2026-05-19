@@ -1,6 +1,23 @@
 'use client';
 
 import { useState } from 'react';
+import { useAuth } from '@/components/AuthProvider';
+
+async function handleSubscribe(planName: string, billingCycle: 'monthly' | 'yearly') {
+  const tier = planName.toLowerCase();
+  try {
+    const res = await fetch('/api/payments/create-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier, billingCycle, appId: 'javari-social' }),
+    });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+    else alert(data.error || 'Could not start checkout');
+  } catch {
+    alert('Network error — please try again');
+  }
+}
 import { 
   ArrowLeft,
   Check,
@@ -245,12 +262,8 @@ export default function PricingPage() {
             Our team is here to help. Contact us anytime.
           </p>
           <div className="flex items-center justify-center gap-4">
-            <button className="px-6 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">
-              Contact Sales
-            </button>
-            <button className="px-6 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg transition-colors">
-              Start Free Trial
-            </button>
+            <a href="mailto:support@craudiovizai.com" className="px-6 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors">Contact Sales</a>
+            <button className="px-6 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg transition-colors" onClick={() => handleSubscribe(plan.name, billingCycle as any)}>Start Free Trial</button>
           </div>
         </div>
       </div>

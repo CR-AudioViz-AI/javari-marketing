@@ -84,14 +84,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: 'userId, amount, and source required' 
       }, { status: 400 });
-      );
     }
 
     if (!['purchase', 'bonus', 'referral', 'promo', 'subscription'].includes(source)) {
       return NextResponse.json({ 
         error: 'Invalid source. Must be: purchase, bonus, referral, promo, or subscription' 
       }, { status: 400 });
-      );
     }
 
     // Import and use addCredits function

@@ -63,4 +63,3 @@ export function createSupabaseServerClient(): SupabaseClient {
 }
 
 export { SUPABASE_URL, SUPABASE_ANON_KEY };
-export default supabase;

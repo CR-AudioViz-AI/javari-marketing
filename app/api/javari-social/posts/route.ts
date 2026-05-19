@@ -130,6 +130,7 @@ function adaptContent(
 
 // GET - List posts for tenant
 export async function GET(request: NextRequest) {
+  const supabase = getSupabase()!
   try {
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get('tenantId');
@@ -189,6 +190,7 @@ export async function GET(request: NextRequest) {
 
 // POST - Create new post
 export async function POST(request: NextRequest) {
+  const supabase = getSupabase()!
   try {
     const body = await request.json();
     const {
@@ -345,6 +347,7 @@ export async function POST(request: NextRequest) {
 
 // PATCH - Update post
 export async function PATCH(request: NextRequest) {
+  const supabase = getSupabase()!
   try {
     const body = await request.json();
     const { postId, tenantId, ...updates } = body;
@@ -390,6 +393,7 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE - Delete post
 export async function DELETE(request: NextRequest) {
+  const supabase = getSupabase()!
   try {
     const { searchParams } = new URL(request.url);
     const postId = searchParams.get('id');
@@ -411,7 +415,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Cannot delete published posts. They remain for analytics.' 
       }, { status: 400 });
-      );
     }
 
     const { error } = await supabase

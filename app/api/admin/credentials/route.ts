@@ -10,11 +10,6 @@ function getSupabase() {
   return sb.createClient(url, key, { auth: { persistSession: false } })
 }
 
- })
-}
- })
-}
-
 // Admin key for protecting this endpoint
 const ADMIN_KEY = process.env.SOCIAL_ADMIN_KEY || 'cr-social-admin-2025';
 

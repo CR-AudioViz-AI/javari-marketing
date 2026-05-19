@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const redirectTo = requestUrl.searchParams.get('redirect_to') || '/';
 
   if (code) {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = getSupabase();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
       console.error('Auth callback error:', error);

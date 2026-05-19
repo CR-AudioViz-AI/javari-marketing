@@ -411,6 +411,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ 
         error: 'Cannot delete published posts. They remain for analytics.' 
       }, { status: 400 });
+      );
     }
 
     const { error } = await supabase

@@ -1248,7 +1248,7 @@ function CrossSellSection() {
           {tools.map((tool, idx) => (
             <a
               key={idx}
-              href="https://craudiovizai.com"
+              href="https://craudiovizai.com/auth/signup"
               target="_blank"
               rel="noopener noreferrer"
               className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-emerald-500/30 transition-all group"
@@ -1267,7 +1267,7 @@ function CrossSellSection() {
         
         <div className="text-center mt-8">
           <a 
-            href="https://craudiovizai.com"
+            href="https://craudiovizai.com/auth/signup"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-emerald-400 hover:text-emerald-300"

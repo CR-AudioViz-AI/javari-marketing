@@ -1,12 +1,12 @@
-// app/layout.tsx — crav-marketing-tools
+// app/layout.tsx — javari-marketing
 // Universal brand shell — EIN, auth CTA, metadata
 // CR AudioViz AI · EIN 39-3646201 · May 2026
 import type { Metadata } from 'next'
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
-  title: 'Javari Marketing Tools',
-  description: 'Javari Marketing Tools — powered by Javari AI on the CR AudioViz AI platform',
-  openGraph: { title: 'Javari Marketing Tools', type: 'website' },
+  title: 'Javari Marketing',
+  description: 'Javari Marketing — powered by Javari AI on the CR AudioViz AI platform',
+  openGraph: { title: 'Javari Marketing', type: 'website' },
 }
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div style={{ background: 'rgba(7,8,15,0.95)', backdropFilter: 'blur(8px)', height: 48, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', position: 'fixed', top: 0, left: 0, right: 0, zIndex: 200, borderBottom: '1px solid rgba(99,102,241,0.12)' }}>
           <a href="https://craudiovizai.com" style={{ color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 16 }}>📣</span>
-            <span style={{ color: '#ec4899' }}>Javari Marketing Tools</span>
+            <span style={{ color: '#ec4899' }}>Javari Marketing</span>
             <span style={{ color: '#374151', fontSize: 10 }}>· CR AudioViz AI · EIN 39-3646201</span>
           </a>
           <a href="https://craudiovizai.com/auth/signup" style={{ background: '#ec4899', color: '#000', borderRadius: 6, padding: '5px 14px', fontSize: 11, fontWeight: 700, textDecoration: 'none' }}>Sign Up Free →</a>

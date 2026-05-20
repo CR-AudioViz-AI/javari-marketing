@@ -1,43 +1,55 @@
-// app/layout.tsx — Javari Marketing
-// Fortune 50 quality shell — auth, nav, Javari AI widget, social footer
-// CR AudioViz AI, LLC · May 2026
+// app/layout.tsx — javari-marketing
+// Server-rendered shell: brand, metadata, EIN, auth CTA in HTML for SEO + production
+// CR AudioViz AI, LLC · EIN: 39-3646201 · May 2026
 import type { Metadata } from 'next'
 import './globals.css'
-import { AuthProvider } from '@/components/AuthProvider'
-import AppShell from '@/components/AppShell'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Javari Marketing | AI Social Media & Campaign Manager',
-  description: 'AI-powered social media management, campaign scheduling, and content generation for every platform. Built by CR AudioViz AI.',
-  keywords: 'social media manager, AI marketing, content generation, campaign management',
+  title: 'Javari Marketing',
+  description: 'AI marketing tools — campaign generation, content creation, social media automation.',
+  keywords: ['Javari AI', 'CR AudioViz AI', 'Javari Marketing', 'artificial intelligence'],
+  authors: [{ name: 'CR AudioViz AI, LLC' }],
+  creator: 'CR AudioViz AI, LLC',
+  publisher: 'CR AudioViz AI, LLC',
   openGraph: {
-    title: 'Javari Marketing — AI Social Media Manager',
-    description: 'Schedule posts, generate content, and run campaigns across 15+ platforms with AI.',
+    title: 'Javari Marketing',
+    description: 'AI marketing tools — campaign generation, content creation, social media automation.',
     siteName: 'Javari Marketing',
+    type: 'website',
   },
+  robots: { index: true, follow: true },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, padding: 0, background: '#0a0a0f' }}>
-        <AuthProvider>
-          <AppShell
-            appName="Javari Marketing"
-            appColor="#ef4444"
-            appEmoji="📣"
-            appDesc="AI social media manager — schedule, generate & publish to 15+ platforms"
-            showCTA={true}
-            ctaHeadline="Grow your audience with AI"
-            handoffApp="Javari AI"
-            handoffUrl="https://javariai.com"
-            handoffPitch="Let Javari AI write all your content automatically"
-          >
-            {children}
-          </AppShell>
-        </AuthProvider>
+      <body style={{ margin: 0, padding: 0, fontFamily: 'system-ui, sans-serif' }}>
+        {/* Server-rendered brand bar — visible in HTML, no JS required */}
+        <div style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', padding: '6px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 200 }}>
+          <a href="https://craudiovizai.com" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: '#fff', fontSize: 13, fontWeight: 600, opacity: 0.85 }}>
+            <span>📣</span>
+            <span style={{ color: '#ec4899' }}>Javari Marketing</span>
+            <span style={{ color: '#6b7280', fontSize: 11, marginLeft: 4 }}>by CR AudioViz AI · EIN 39-3646201</span>
+          </a>
+          <a href="https://craudiovizai.com/auth/signup" style={{ background: '#ec4899', color: '#000', borderRadius: 6, padding: '4px 14px', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+            Free to Start →
+          </a>
+        </div>
+        {children}
+        {/* Server-rendered footer — EIN always in HTML */}
+        <footer style={{ background: '#080808', borderTop: '1px solid rgba(255,255,255,0.06)', padding: '20px 24px', textAlign: 'center' }}>
+          <p style={{ color: '#374151', fontSize: 11, margin: '0 0 4px', fontFamily: 'system-ui' }}>
+            © 2026 CR AudioViz AI, LLC — EIN: 39-3646201 · Fort Myers, Florida
+          </p>
+          <p style={{ color: '#1f2937', fontSize: 11, margin: 0, fontFamily: 'system-ui' }}>
+            Your Story. Our Design. Everyone Connects. Everyone Wins. ·{' '}
+            <a href="https://craudiovizai.com" style={{ color: '#374151', textDecoration: 'none' }}>craudiovizai.com</a>
+            {' '}·{' '}
+            <a href="https://craudiovizai.com/auth/signup" style={{ color: '#ec4899', textDecoration: 'none', fontWeight: 600 }}>Sign Up Free</a>
+          </p>
+        </footer>
       </body>
     </html>
   )

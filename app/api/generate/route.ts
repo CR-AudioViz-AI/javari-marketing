@@ -1,147 +1,166 @@
-// app/api/generate/route.ts — Marketing Generate API
-// Simple, reliable AI content generation for social posts and ebook splits
-// COST LAW: Groq (free) -> OpenAI gpt-4o-mini fallback
+// app/api/generate/route.ts — Marketing Generate API v5
+// Routes through Javari AI (javariai.com) which is confirmed working
+// Fallback: direct Groq, then Anthropic
 // CR AudioViz AI · EIN 39-3646201 · June 2026
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 90;
 
-async function callAI(prompt: string, maxTokens = 2000): Promise<string> {
-  const groqKey = process.env.GROQ_API_KEY || "";
-  if (groqKey) {
-    try {
-      const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + groqKey },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          max_tokens: maxTokens,
-          temperature: 0.85,
-          messages: [{ role: "user", content: prompt }],
-        }),
-        signal: AbortSignal.timeout(45000),
-      });
-      if (r.ok) {
-        const d = await r.json() as { choices?: Array<{ message?: { content?: string } }> };
-        const text = d.choices?.[0]?.message?.content || "";
-        if (text) return text;
-      }
-    } catch (_) { /* fallthrough */ }
-  }
-  const openaiKey = process.env.OPENAI_API_KEY || "";
-  if (!openaiKey) throw new Error("No AI providers configured");
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+const JAVARI_URL = process.env.NEXT_PUBLIC_JAVARI_AI_URL || "https://javariai.com";
+const JAVARI_KEY = process.env.JAVARI_API_KEY || "";
+
+async function callJavari(prompt: string): Promise<string> {
+  const r = await fetch(JAVARI_URL + "/api/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + openaiKey },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
-      max_tokens: maxTokens,
-      temperature: 0.85,
       messages: [{ role: "user", content: prompt }],
+      stream: false,
+      maxTier: "low",
     }),
     signal: AbortSignal.timeout(45000),
   });
+  if (!r.ok) throw new Error("Javari AI error: " + r.status);
   const d = await r.json() as { choices?: Array<{ message?: { content?: string } }> };
-  return d.choices?.[0]?.message?.content || "";
+  const text = d.choices?.[0]?.message?.content || "";
+  if (!text) throw new Error("Javari AI returned empty response");
+  return text;
+}
+
+async function callAnthropic(prompt: string): Promise<string> {
+  const key = process.env.ANTHROPIC_API_KEY || "";
+  if (!key) throw new Error("no anthropic key");
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1500,
+      messages: [{ role: "user", content: prompt }],
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+  const d = await r.json() as { content?: Array<{ text?: string }> };
+  return d.content?.[0]?.text || "";
+}
+
+async function callGroq(prompt: string): Promise<string> {
+  const key = process.env.GROQ_API_KEY || "";
+  if (!key) throw new Error("no groq key");
+  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile", max_tokens: 1500, temperature: 0.85,
+      messages: [{ role: "user", content: prompt }],
+    }),
+    signal: AbortSignal.timeout(28000),
+  });
+  const d = await r.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const text = d.choices?.[0]?.message?.content || "";
+  if (!text) throw new Error("Groq returned empty");
+  return text;
+}
+
+async function generate(prompt: string): Promise<string> {
+  // Try Javari AI first (battle-tested, already works)
+  try { return await callJavari(prompt); } catch (_) {}
+  // Try Groq free
+  try { return await callGroq(prompt); } catch (_) {}
+  // Try Anthropic (key is plaintext in this project)
+  try { return await callAnthropic(prompt); } catch (_) {}
+  throw new Error("All AI providers failed");
 }
 
 const PLATFORM_RULES: Record<string, string> = {
-  instagram:    "Instagram: Hook in first line. Emojis throughout. 5-10 hashtags at the very end after a blank line. Max 2200 chars.",
-  linkedin:     "LinkedIn: Professional but personal. First 210 chars must make people want to click see more. Data or insight-driven. End with a question. Max 3000 chars.",
-  twitter:      "X/Twitter: MUST be under 260 chars total. Strong punchy hook. Max 2 hashtags inline.",
-  facebook:     "Facebook: Conversational storytelling. 2-4 paragraphs. Question at the end.",
-  tiktok:       "TikTok: Under 150 chars. Gen-Z voice. 3-5 trending hashtags.",
-  threads:      "Threads: Casual, authentic, like texting a friend. Under 450 chars.",
-  youtube:      "YouTube Community: Engaging question or poll. 200-400 words.",
-  pinterest:    "Pinterest: Keyword-rich description. Focus on outcome/benefit. Under 500 chars.",
-  discord:      "Discord: Community-first. Casual and engaging.",
-  telegram:     "Telegram: Clear and direct announcement style.",
-  bluesky:      "Bluesky: Authentic and thoughtful. Under 280 chars.",
-  mastodon:     "Mastodon: Open web values. Community-oriented.",
-  craudiovizai: "CR AudioViz AI blog/platform post: Brand voice. Highlight unique value and community impact.",
-  javariai:     "Javari AI platform post: Showcase AI power and features. Link to specific capability.",
+  instagram:    "Instagram: Engaging hook in first line. Use emojis naturally. 5-10 hashtags at end on separate line. Max 2200 chars.",
+  linkedin:     "LinkedIn: Professional yet personal. First 2 sentences critical (they appear before see more). Data or story-driven. End with question. Max 3000 chars.",
+  twitter:      "X Twitter: 240 chars MAX total including hashtags. One punchy sentence. 1-2 hashtags.",
+  facebook:     "Facebook: 2-3 paragraphs. Conversational storytelling. End with a question.",
+  tiktok:       "TikTok: Ultra short, under 100 chars. Trendy Gen-Z language. 3-5 hashtags.",
+  threads:      "Threads: Casual authentic voice. Under 400 chars. Like a tweet but friendlier.",
+  youtube:      "YouTube Community: 2-3 sentences. Ask for engagement. Can be up to 300 chars.",
+  pinterest:    "Pinterest: Keyword-rich, under 500 chars. Focus on outcome and benefit.",
+  discord:      "Discord: Community-first. Brief and inviting. Under 300 chars.",
+  telegram:     "Telegram: Clear announcement. Professional but direct. Under 400 chars.",
+  bluesky:      "Bluesky: Thoughtful, under 280 chars. Similar to early Twitter.",
+  mastodon:     "Mastodon: Open web friendly. Under 500 chars. No promotional language.",
+  craudiovizai: "CR AudioViz AI: Highlight platform mission and impact. Inspire action. 2-3 paragraphs.",
+  javariai:     "Javari AI: Showcase AI power. Specific feature highlight. Drive to javariai.com.",
 };
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as {
-      type: string;
-      platform?: string;
-      tone?: string;
-      brief?: string;
-      brand?: string;
-      contentType?: string;
-      maxChars?: number;
-      title?: string;
-      cadenceDays?: number;
+      type: string; platform?: string; tone?: string; brief?: string;
+      brand?: string; contentType?: string; title?: string; cadenceDays?: number;
     };
 
-    const { type, platform = "instagram", tone = "professional", brief = "",
-            brand = "CR AudioViz AI", contentType = "post" } = body;
+    const { type, platform = "instagram", tone = "professional",
+            brief = "", brand = "CR AudioViz AI", contentType = "post" } = body;
 
     if (type === "social") {
-      const rules = PLATFORM_RULES[platform] || "Social media post. Be engaging and appropriate for the platform.";
+      const rules = PLATFORM_RULES[platform] || "Write an engaging social media post.";
       const prompt =
-        "You are a world-class social media copywriter.\n" +
-        "Brand: " + brand + "\n" +
-        "Platform rules: " + rules + "\n" +
-        "Tone: " + tone + "\n" +
-        "Content type: " + contentType + "\n\n" +
-        "Write the post for this brief:\n" + brief + "\n\n" +
-        "Important:\n" +
-        "- Write ONLY the post content and hashtags\n" +
-        "- Do NOT include any labels, headers, or explanations\n" +
-        "- Put hashtags on a separate line at the end (if appropriate for the platform)\n" +
-        "- Make it scroll-stopping and authentic";
+        "You are a world-class social media copywriter. Write a single " + contentType + " for " + platform + ".
 
-      const raw = await callAI(prompt);
+" +
+        "Brand: " + brand + "
+" +
+        "Tone: " + tone + "
+" +
+        "Platform: " + rules + "
 
-      // Simple extraction: split content from hashtags
-      const lines = raw.split("\n");
-      const hashtagOnlyLines: string[] = [];
-      const contentLines: string[] = [];
+" +
+        "Topic: " + brief + "
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        const words = trimmed.split(/\s+/);
-        const allHashtags = words.length > 0 && words.every(w => w.startsWith("#"));
-        if (allHashtags && trimmed.length > 0) {
-          hashtagOnlyLines.push(trimmed);
-        } else {
-          contentLines.push(line);
-        }
+" +
+        "Write only the post. No intro, no labels, no quotation marks around it. " +
+        "Start directly with the content. Put hashtags at the end if appropriate.";
+
+      const raw = await generate(prompt);
+
+      // Extract hashtags from the end
+      const lines = raw.trim().split("\n");
+      const hashtagLine = lines[lines.length - 1]?.trim() || "";
+      const isHashtagLine = hashtagLine.split(" ").every(w => w.startsWith("#") && w.length > 1);
+      
+      let content = raw.trim();
+      let hashtags: string[] = [];
+      
+      if (isHashtagLine) {
+        hashtags = hashtagLine.match(/#\w+/g) || [];
+        content = lines.slice(0, -1).join("\n").trim();
+      } else {
+        // Extract any inline hashtags
+        hashtags = (raw.match(/#\w+/g) || []).slice(0, 20);
       }
 
-      // Also extract inline hashtags from content
-      const content = contentLines.join("\n").trim();
-      const inlineHashtags = content.match(/#\w+/g) || [];
-      const separateHashtags = hashtagOnlyLines.join(" ").match(/#\w+/g) || [];
-      const allHashtags = Array.from(new Set([...inlineHashtags, ...separateHashtags])).slice(0, 20);
-
-      return NextResponse.json({ content, hashtags: allHashtags, platform, tone });
+      return NextResponse.json({ content, hashtags, platform, tone });
     }
 
     if (type === "ebook_split") {
       const ebookContent = brief || "";
-      const title = body.title || "Ebook Series";
+      const title = body.title || "Ebook";
       const cadenceDays = body.cadenceDays || 7;
       const wordCount = ebookContent.split(/\s+/).length;
-      const targetChapters = Math.min(Math.max(Math.floor(wordCount / 400), 4), 15);
+      const targetChapters = Math.min(Math.max(Math.floor(wordCount / 400), 4), 12);
 
       const prompt =
-        "You are an expert content strategist splitting an ebook into a drip email campaign.\n\n" +
-        "Ebook title: " + title + "\n" +
-        "Create exactly " + targetChapters + " chapters.\n\n" +
-        "Content to split:\n" + ebookContent.slice(0, 8000) + "\n\n" +
-        "Return a JSON array. Each element must have these exact keys:\n" +
-        "- title: compelling chapter title\n" +
-        "- content: full chapter content (minimum 300 words)\n" +
-        "- teaser: one sentence teaser/cliffhanger for the next chapter\n\n" +
-        "Return ONLY the JSON array, nothing else.";
+        "Split this ebook into exactly " + targetChapters + " chapters for a weekly drip email campaign.\n" +
+        "Title: " + title + "\n\n" +
+        "Content:\n" + ebookContent.slice(0, 8000) + "\n\n" +
+        "Return a JSON array with " + targetChapters + " objects, each having:\n" +
+        "{ \"title\": \"chapter title\", \"content\": \"full chapter (300+ words)\", \"teaser\": \"one sentence cliffhanger\" }\n\n" +
+        "Return ONLY the JSON array.";
 
-      const raw = await callAI(prompt, 4000);
-
+      const raw = await generate(prompt);
+      
       let chapters: Array<{ title: string; content: string; teaser: string }> = [];
       try {
         const start = raw.indexOf("[");
@@ -150,23 +169,10 @@ export async function POST(req: NextRequest) {
           chapters = JSON.parse(raw.slice(start, end + 1));
         }
       } catch (_) {
-        // Fallback: one chapter with all content
-        chapters = [{
-          title: "Chapter 1: " + title,
-          content: ebookContent.slice(0, 2000),
-          teaser: "More valuable insights coming next week...",
-        }];
+        chapters = [{ title: title, content: ebookContent.slice(0, 2000), teaser: "More coming next week!" }];
       }
 
-      if (!Array.isArray(chapters) || chapters.length === 0) {
-        chapters = [{
-          title: title,
-          content: ebookContent.slice(0, 2000),
-          teaser: "Continue reading next week...",
-        }];
-      }
-
-      return NextResponse.json({ chapters, totalChapters: chapters.length, cadenceDays });
+      return NextResponse.json({ chapters: chapters || [], totalChapters: (chapters || []).length, cadenceDays });
     }
 
     return NextResponse.json({ error: "Unknown type: " + type }, { status: 400 });

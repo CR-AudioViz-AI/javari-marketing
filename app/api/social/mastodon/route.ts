@@ -1,3 +1,4 @@
+import { rateLimit } from '@/lib/api/rate-limit';
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server';
@@ -17,6 +18,9 @@ interface MastodonPostRequest {
 
 // POST - Create a status on Mastodon
 export async function POST(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   try {
     const body = await request.json() as MastodonPostRequest;
     const { instanceUrl, accessToken, content, mediaIds, visibility, contentWarning } = body;

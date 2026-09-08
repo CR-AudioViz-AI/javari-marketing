@@ -190,7 +190,24 @@ const platformsData = [
   { name: 'tumblr', display_name: 'Tumblr', icon: 'tumblr', category: 'publishing', api_type: 'oauth2', character_limit: null, is_free_tier: true },
 ];
 
+
+function requireAdmin(request: Request): Response | null {
+  const secret = process.env.ADMIN_API_SECRET ?? '';
+  if (!secret) {
+    return new Response(JSON.stringify({ error: 'Not configured.', code: 'NOT_CONFIGURED' }),
+      { status: 503, headers: { 'content-type': 'application/json' } });
+  }
+  const given = request.headers.get('x-admin-secret') ?? '';
+  const a = Buffer.from(given); const b = Buffer.from(secret);
+  const ok = a.length === b.length && require('node:crypto').timingSafeEqual(a, b);
+  return ok ? null : new Response(JSON.stringify({ error: 'Forbidden', code: 'ADMIN_ONLY' }),
+    { status: 403, headers: { 'content-type': 'application/json' } });
+}
+
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
+
   try {
     const { searchParams } = new URL(request.url);
     const SERVICE_KEY = searchParams.get('key');

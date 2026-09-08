@@ -1,3 +1,4 @@
+import { rateLimit } from '@/lib/api/rate-limit';
 // app/api/generate/route.ts
 // Javari Marketing — AI Content Generator
 // COST LAW: Groq free -> OpenAI fallback
@@ -105,6 +106,9 @@ const RULES: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
+  const limited = rateLimit(req);
+  if (limited) return limited;
+
   try {
     const body = await req.json() as {
       type?: string;

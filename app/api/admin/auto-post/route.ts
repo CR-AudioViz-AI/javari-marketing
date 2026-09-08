@@ -199,7 +199,24 @@ async function postToBluesky(content: string, creds: { credentials: { identifier
 }
 
 // Main POST handler - Auto-post to multiple platforms
+
+function requireAdmin(request: Request): Response | null {
+  const secret = process.env.ADMIN_API_SECRET ?? '';
+  if (!secret) {
+    return new Response(JSON.stringify({ error: 'Not configured.', code: 'NOT_CONFIGURED' }),
+      { status: 503, headers: { 'content-type': 'application/json' } });
+  }
+  const given = request.headers.get('x-admin-secret') ?? '';
+  const a = Buffer.from(given); const b = Buffer.from(secret);
+  const ok = a.length === b.length && require('node:crypto').timingSafeEqual(a, b);
+  return ok ? null : new Response(JSON.stringify({ error: 'Forbidden', code: 'ADMIN_ONLY' }),
+    { status: 403, headers: { 'content-type': 'application/json' } });
+}
+
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
+
   try {
     const body = await request.json() as PostRequest;
     const {

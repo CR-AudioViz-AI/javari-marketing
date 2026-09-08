@@ -1,3 +1,4 @@
+import { rateLimit } from '@/lib/api/rate-limit';
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 // ============================================================================
@@ -188,6 +189,9 @@ function generateSuggestedResponse(isQuestion: boolean): string {
 // ============================================================================
 
 export async function GET(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   try {
     const { searchParams } = new URL(request.url);
     const niche = searchParams.get('niche');

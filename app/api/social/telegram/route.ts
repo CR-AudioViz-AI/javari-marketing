@@ -1,3 +1,4 @@
+import { rateLimit } from '@/lib/api/rate-limit';
 import { secretKey, supabaseUrl } from "@craudioviz/platform-sdk";
 import { telegramUrl } from '@/lib/social/egress';
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,9 @@ function getSupabase() {
 
 // POST - Send message via Telegram Bot
 export async function POST(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   try {
     const body = await request.json();
     const { 

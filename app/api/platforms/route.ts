@@ -1,3 +1,4 @@
+import { readBody } from '@/lib/api/body';
 import { rateLimit } from '@/lib/api/rate-limit';
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -98,7 +99,9 @@ export async function GET(request: NextRequest) {
 // POST endpoint for personalized recommendations
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const parsed = await readBody<Record<string, unknown>>(request);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.body as any;
     const { industry, goal, budget, channels } = body;
 
     // Get relevant platforms based on criteria

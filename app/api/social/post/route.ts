@@ -1,3 +1,4 @@
+import { rateLimit } from '@/lib/api/rate-limit';
 import { secretKey, supabaseUrl } from "@craudioviz/platform-sdk";
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -303,6 +304,9 @@ async function postToSlack(
 
 // Main POST handler
 export async function POST(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   try {
     const body = await request.json();
     const { content, accountIds, linkUrl, hashtags, mediaUrls } = body;

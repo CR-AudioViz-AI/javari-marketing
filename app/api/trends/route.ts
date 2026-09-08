@@ -1,3 +1,4 @@
+import { rateLimit } from '@/lib/api/rate-limit';
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 // ============================================================================
@@ -19,6 +20,9 @@ import {
 } from '@/lib/free-apis';
 
 export async function GET(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
   const source = searchParams.get('source'); // reddit, hackernews, news, all

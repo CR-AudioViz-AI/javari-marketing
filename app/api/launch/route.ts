@@ -1,3 +1,4 @@
+import { readBody } from '@/lib/api/body';
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 // ============================================================================
@@ -334,7 +335,9 @@ export async function GET(request: NextRequest) {
 // POST endpoint to generate personalized checklist
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const parsed = await readBody<Record<string, unknown>>(request);
+    if (!parsed.ok) return parsed.response;
+    const body = parsed.body as any;
     const { launchDate, productType, channels, budget } = body;
 
     // Calculate days to launch

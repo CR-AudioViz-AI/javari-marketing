@@ -1,3 +1,4 @@
+import { rateLimit } from '@/lib/api/rate-limit';
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server';
@@ -24,6 +25,9 @@ interface DiscordWebhookPayload {
 
 // POST - Send message to Discord webhook
 export async function POST(request: NextRequest) {
+  const limited = rateLimit(request);
+  if (limited) return limited;
+
   try {
     const body = await request.json();
     const { 

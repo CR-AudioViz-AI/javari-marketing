@@ -7,10 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "prebuild": "node scripts/audit-route-auth.mjs"
+    "prebuild": "node scripts/check-sdk-install.mjs && node scripts/audit-route-auth.mjs"
   },
   "dependencies": {
-    "@craudioviz/platform-sdk": "git+https://github.com/CR-AudioViz-AI/platform-sdk.git#589941b779f0780cd8e7c3d5cfc5b6fe93b7a9d8",
+    "@craudioviz/platform-sdk": "git+https://github.com/CR-AudioViz-AI/platform-sdk.git#31a7f6ddb0e3f79f7dbc5d16c83273221f872647",
     "@supabase/supabase-js": "^2.47.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
